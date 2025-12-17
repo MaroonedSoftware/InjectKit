@@ -1,0 +1,122 @@
+# Injectkit
+
+> A lightweight, type-safe dependency injection container for TypeScript with constructor injection, factory functions, and lifetime management.
+
+## Requirements
+
+- TypeScript with `experimentalDecorators: true` and `emitDecoratorMetadata: true`
+- Import `reflect-metadata` at application entry point
+
+## Core Concepts
+
+- **Registry**: Configuration phase where services are registered before building a container
+- **Container**: Runtime phase that resolves and manages service instances
+- **Identifier**: A class constructor or abstract class used to register and resolve services
+- **Lifetime**: How long instances live - singleton (shared), transient (new each time), or scoped (per scope)
+
+## Public API
+
+### Exports
+
+- `Injectable()` - Decorator marking classes for DI (required for `useClass()` registrations)
+- `InjectKitRegistry` - Registry class for configuring service registrations
+- `Container` - Abstract container class with `get()` and `createScopedContainer()` methods
+
+### Types
+
+- `Identifier<T>` - Constructor or abstract class used as service key
+- `Container` - Base container interface
+- `ScopedContainer` - Container with `override()` method for scoped instances
+- `Factory<T>` - Function `(container: Container) => T` for factory registrations
+- `Lifetime` - `'singleton' | 'transient' | 'scoped'`
+
+## Registration Patterns
+
+### Class Registration
+```typescript
+registry.register(ServiceClass).useClass(ServiceClass).asSingleton();
+```
+
+### Factory Registration
+```typescript
+registry.register(ServiceClass).useFactory((container) => new ServiceClass()).asSingleton();
+```
+
+### Instance Registration
+```typescript
+registry.register(ServiceClass).useInstance(existingInstance);
+```
+
+### Array Collection
+```typescript
+registry.register(ServiceArray).useArray(ServiceArray).push(ImplA).push(ImplB);
+```
+
+### Map Collection
+```typescript
+registry.register(ServiceMap).useMap(ServiceMap).set('key1', ImplA).set('key2', ImplB);
+```
+
+## Lifetime Options
+
+- `.asSingleton()` - One instance shared across all containers
+- `.asTransient()` - New instance on every `get()` call
+- `.asScoped()` - One instance per scope, inherited by child scopes
+
+## Container Methods
+
+- `container.get(Identifier)` - Resolve a service instance
+- `container.createScopedContainer()` - Create child container for scoped services
+- `scopedContainer.override(Identifier, instance)` - Override registration in scope
+
+## Registry Methods
+
+- `registry.register(Identifier)` - Start registration chain
+- `registry.remove(Identifier)` - Remove a registration
+- `registry.isRegistered(Identifier)` - Check if service is registered
+- `registry.build()` - Build container from registrations (validates dependencies)
+
+## Validation (on build)
+
+- Missing dependencies throw error
+- Circular dependencies detected and reported
+- Classes without `@Injectable()` decorator rejected
+
+## Usage Example
+
+```typescript
+import 'reflect-metadata';
+import { Injectable, InjectKitRegistry } from 'injectkit';
+
+@Injectable()
+class Logger {
+    log(msg: string) { console.log(msg); }
+}
+
+@Injectable()
+class UserService {
+    constructor(private logger: Logger) {}
+    getUsers() { this.logger.log('Fetching users'); }
+}
+
+const registry = new InjectKitRegistry();
+registry.register(Logger).useClass(Logger).asSingleton();
+registry.register(UserService).useClass(UserService).asSingleton();
+
+const container = registry.build();
+const userService = container.get(UserService);
+```
+
+## Abstract Class Pattern
+
+Register abstract classes with concrete implementations:
+```typescript
+abstract class Repository { abstract find(id: string): any; }
+
+@Injectable()
+class UserRepository extends Repository { find(id: string) { return null; } }
+
+registry.register(Repository).useClass(UserRepository).asSingleton();
+const repo = container.get(Repository); // Returns UserRepository instance
+```
+
