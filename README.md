@@ -46,41 +46,41 @@ yarn add injectkit reflect-metadata
 
 ```json
 {
-    "compilerOptions": {
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true
-    }
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
 }
 ```
 
 - Import `reflect-metadata` **once** at your application entry point:
 
 ```typescript
-import 'reflect-metadata';
+import "reflect-metadata";
 ```
 
 ## Quick Start
 
 ```typescript
-import 'reflect-metadata';
-import { Injectable, InjectKitRegistry, Container } from 'injectkit';
+import "reflect-metadata";
+import { Injectable, InjectKitRegistry, Container } from "injectkit";
 
 // 1. Decorate your classes with @Injectable()
 @Injectable()
 class Logger {
-    log(message: string) {
-        console.log(`[LOG] ${message}`);
-    }
+  log(message: string) {
+    console.log(`[LOG] ${message}`);
+  }
 }
 
 @Injectable()
 class UserService {
-    constructor(private logger: Logger) {}
+  constructor(private logger: Logger) {}
 
-    createUser(name: string) {
-        this.logger.log(`Creating user: ${name}`);
-        return { id: crypto.randomUUID(), name };
-    }
+  createUser(name: string) {
+    this.logger.log(`Creating user: ${name}`);
+    return { id: crypto.randomUUID(), name };
+  }
 }
 
 // 2. Create a registry and register your services
@@ -93,7 +93,7 @@ const container = registry.build();
 
 // 4. Resolve and use your services
 const userService = container.get(UserService);
-userService.createUser('Alice');
+userService.createUser("Alice");
 ```
 
 ## Core Concepts
@@ -137,15 +137,15 @@ An **Identifier** is a class constructor or abstract class used to register and 
 ```typescript
 // Abstract class as identifier
 abstract class Repository {
-    abstract find(id: string): Promise<Entity>;
+  abstract find(id: string): Promise<Entity>;
 }
 
 // Concrete implementation
 @Injectable()
 class PostgresRepository extends Repository {
-    async find(id: string) {
-        /* ... */
-    }
+  async find(id: string) {
+    /* ... */
+  }
 }
 
 // Register abstract → concrete mapping
@@ -182,10 +182,10 @@ Register a service using its constructor. Dependencies are automatically resolve
 ```typescript
 @Injectable()
 class EmailService {
-    constructor(
-        private config: ConfigService,
-        private logger: Logger
-    ) {}
+  constructor(
+    private config: ConfigService,
+    private logger: Logger,
+  ) {}
 }
 
 registry.register(EmailService).useClass(EmailService).asSingleton();
@@ -197,15 +197,15 @@ Register a service using a factory function. Useful for complex initialization o
 
 ```typescript
 registry
-    .register(DatabaseConnection)
-    .useFactory((container) => {
-        const config = container.get(ConfigService);
-        return new DatabaseConnection({
-            host: config.dbHost,
-            port: config.dbPort,
-        });
-    })
-    .asSingleton();
+  .register(DatabaseConnection)
+  .useFactory((container) => {
+    const config = container.get(ConfigService);
+    return new DatabaseConnection({
+      host: config.dbHost,
+      port: config.dbPort,
+    });
+  })
+  .asSingleton();
 ```
 
 #### `useInstance(instance)`
@@ -213,7 +213,7 @@ registry
 Register an existing instance directly. Always behaves as a singleton.
 
 ```typescript
-const config = new ConfigService({ env: 'production' });
+const config = new ConfigService({ env: "production" });
 registry.register(ConfigService).useInstance(config);
 ```
 
@@ -225,12 +225,12 @@ Register a collection of implementations. Useful for plugin systems or strategy 
 // Handler implementations
 @Injectable()
 class JsonHandler extends Handler {
-    /* ... */
+  /* ... */
 }
 
 @Injectable()
 class XmlHandler extends Handler {
-    /* ... */
+  /* ... */
 }
 
 // Array container
@@ -240,7 +240,11 @@ class Handlers extends Array<Handler> {}
 // Registration
 registry.register(JsonHandler).useClass(JsonHandler).asSingleton();
 registry.register(XmlHandler).useClass(XmlHandler).asSingleton();
-registry.register(Handlers).useArray(Handlers).push(JsonHandler).push(XmlHandler);
+registry
+  .register(Handlers)
+  .useArray(Handlers)
+  .push(JsonHandler)
+  .push(XmlHandler);
 
 // Usage
 const handlers = container.get(Handlers);
@@ -255,11 +259,15 @@ Register a keyed collection of implementations.
 @Injectable()
 class ProcessorMap extends Map<string, Processor> {}
 
-registry.register(ProcessorMap).useMap(ProcessorMap).set('fast', FastProcessor).set('accurate', AccurateProcessor);
+registry
+  .register(ProcessorMap)
+  .useMap(ProcessorMap)
+  .set("fast", FastProcessor)
+  .set("accurate", AccurateProcessor);
 
 // Usage
 const processors = container.get(ProcessorMap);
-const processor = processors.get('fast');
+const processor = processors.get("fast");
 ```
 
 ### Container Methods
@@ -290,7 +298,7 @@ const testScope = container.createScopedContainer();
 
 // Override with a mock
 testScope.override(EmailService, {
-    send: vi.fn().mockResolvedValue(true),
+  send: vi.fn().mockResolvedValue(true),
 } as EmailService);
 
 // Tests use the mock
@@ -322,21 +330,21 @@ Scoped containers enable request-scoped or unit-of-work patterns:
 ```typescript
 @Injectable()
 class RequestContext {
-    readonly requestId = crypto.randomUUID();
-    readonly startTime = Date.now();
+  readonly requestId = crypto.randomUUID();
+  readonly startTime = Date.now();
 }
 
 registry.register(RequestContext).useClass(RequestContext).asScoped();
 
 // Per-request handling
 app.use((req, res, next) => {
-    const scope = container.createScopedContainer();
+  const scope = container.createScopedContainer();
 
-    // Same RequestContext instance throughout this request
-    const ctx = scope.get(RequestContext);
-    req.scope = scope;
+  // Same RequestContext instance throughout this request
+  const ctx = scope.get(RequestContext);
+  req.scope = scope;
 
-    next();
+  next();
 });
 ```
 
@@ -364,7 +372,7 @@ InjectKit validates your dependency graph when calling `build()`:
 ```typescript
 @Injectable()
 class UserService {
-    constructor(private db: DatabaseService) {} // Not registered!
+  constructor(private db: DatabaseService) {} // Not registered!
 }
 
 registry.register(UserService).useClass(UserService).asSingleton();
@@ -376,12 +384,12 @@ registry.build(); // ❌ Error: Missing dependencies for UserService: DatabaseSe
 ```typescript
 @Injectable()
 class ServiceA {
-    constructor(private b: ServiceB) {}
+  constructor(private b: ServiceB) {}
 }
 
 @Injectable()
 class ServiceB {
-    constructor(private a: ServiceA) {}
+  constructor(private a: ServiceA) {}
 }
 
 registry.register(ServiceA).useClass(ServiceA).asSingleton();
@@ -393,7 +401,7 @@ registry.build(); // ❌ Error: Circular dependency found: ServiceA -> ServiceB 
 
 ```typescript
 class ForgotDecorator {
-    constructor(private dep: SomeDependency) {}
+  constructor(private dep: SomeDependency) {}
 }
 
 registry.register(ForgotDecorator).useClass(ForgotDecorator).asSingleton();
@@ -405,29 +413,29 @@ registry.build(); // ❌ Error: Service not decorated: ForgotDecorator
 InjectKit makes testing easy with scoped overrides:
 
 ```typescript
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from "vitest";
 
-describe('UserService', () => {
-    let scope: ScopedContainer;
-    let mockDb: DatabaseService;
+describe("UserService", () => {
+  let scope: ScopedContainer;
+  let mockDb: DatabaseService;
 
-    beforeEach(() => {
-        scope = container.createScopedContainer();
+  beforeEach(() => {
+    scope = container.createScopedContainer();
 
-        mockDb = {
-            query: vi.fn().mockResolvedValue([{ id: '1', name: 'Test' }]),
-        } as unknown as DatabaseService;
+    mockDb = {
+      query: vi.fn().mockResolvedValue([{ id: "1", name: "Test" }]),
+    } as unknown as DatabaseService;
 
-        scope.override(DatabaseService, mockDb);
-    });
+    scope.override(DatabaseService, mockDb);
+  });
 
-    it('should fetch users', async () => {
-        const userService = scope.get(UserService);
-        const users = await userService.getUsers();
+  it("should fetch users", async () => {
+    const userService = scope.get(UserService);
+    const users = await userService.getUsers();
 
-        expect(users).toHaveLength(1);
-        expect(mockDb.query).toHaveBeenCalled();
-    });
+    expect(users).toHaveLength(1);
+    expect(mockDb.query).toHaveBeenCalled();
+  });
 });
 ```
 
@@ -437,14 +445,14 @@ Recommended `tsconfig.json` settings:
 
 ```json
 {
-    "compilerOptions": {
-        "target": "ES2022",
-        "module": "ESNext",
-        "moduleResolution": "bundler",
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": true,
-        "strict": true
-    }
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true
+  }
 }
 ```
 

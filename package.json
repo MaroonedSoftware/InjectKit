@@ -1,68 +1,68 @@
 {
-    "name": "injectkit",
-    "version": "1.0.0",
-    "description": "Lightweight, type-safe dependency injection container for TypeScript with constructor injection, factory functions, and lifetime management.",
-    "author": {
-        "name": "Marooned Software",
-        "url": "https://github.com/MaroonedSoftware/injectkit"
-    },
-    "bugs": {
-        "url": "https://github.com/MaroonedSoftware/injectkit/issues"
-    },
-    "homepage": "https://github.com/MaroonedSoftware/injectkit#readme",
-    "keywords": [
-        "dependency injection",
-        "inversion of control",
-        "service locator",
-        "dependency",
-        "injection",
-        "service",
-        "container",
-        "typescript"
-    ],
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/MaroonedSoftware/injectkit.git"
-    },
-    "private": true,
-    "type": "module",
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "license": "MIT",
-    "files": [
-        "dist/**"
-    ],
-    "packageManager": "pnpm@10.24.0",
-    "engines": {
-        "node": ">=20"
-    },
-    "scripts": {
-        "build": "tsup src/index.ts --format esm --sourcemap --dts && tsc --emitDeclarationOnly --declaration",
-        "build:ci": "check && build",
-        "changeset": "changeset && changeset version",
-        "lint": "eslint",
-        "format": "prettier",
-        "check": "prettier --write . && eslint --fix",
-        "test": "vitest run",
-        "test:ci": "vitest run --coverage "
-    },
-    "dependencies": {
-        "reflect-metadata": "^0.2.2"
-    },
-    "devDependencies": {
-        "@changesets/cli": "^2.29.8",
-        "@eslint/js": "^9.39.2",
-        "@vitest/coverage-v8": "^4.0.15",
-        "eslint": "^9.39.2",
-        "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-only-warn": "^1.1.0",
-        "globals": "^16.5.0",
-        "prettier": "^3.7.4",
-        "tsup": "^8.5.1",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "^8.50.0",
-        "unplugin-swc": "^1.5.9",
-        "vitest": "^4.0.15"
-    }
+  "name": "injectkit",
+  "version": "1.0.0",
+  "description": "Lightweight, type-safe dependency injection container for TypeScript with constructor injection, factory functions, and lifetime management.",
+  "author": {
+    "name": "Marooned Software",
+    "url": "https://github.com/MaroonedSoftware/injectkit"
+  },
+  "bugs": {
+    "url": "https://github.com/MaroonedSoftware/injectkit/issues"
+  },
+  "homepage": "https://github.com/MaroonedSoftware/injectkit#readme",
+  "keywords": [
+    "dependency injection",
+    "inversion of control",
+    "service locator",
+    "dependency",
+    "injection",
+    "service",
+    "container",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MaroonedSoftware/injectkit.git"
+  },
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "files": [
+    "dist/**"
+  ],
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --sourcemap --dts && tsc --emitDeclarationOnly --declaration",
+    "build:ci": "pnpm run check && pnpm run build",
+    "changeset": "changeset && changeset version",
+    "lint": "eslint",
+    "format": "prettier",
+    "check": "prettier --write . && eslint --fix",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage "
+  },
+  "dependencies": {
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@eslint/js": "^9.39.2",
+    "@vitest/coverage-v8": "^4.0.15",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-only-warn": "^1.1.0",
+    "globals": "^16.5.0",
+    "prettier": "^3.7.4",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.0",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.0.15"
+  }
 }

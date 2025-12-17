@@ -18,7 +18,7 @@
  * Without it, the container cannot determine constructor dependencies.
  */
 export const Injectable = (): ClassDecorator => {
-    return <TFunction extends Function>(target: TFunction): TFunction => {
-        return target;
-    };
+  return <TFunction extends Function>(target: TFunction): TFunction => {
+    return target;
+  };
 };

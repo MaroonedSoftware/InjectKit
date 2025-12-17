@@ -77,11 +77,11 @@ registry.register(ServiceClass).useClass(ServiceClass).asSingleton();
 
 ```typescript
 registry
-    .register(ServiceClass)
-    .useFactory((container) => {
-        return new ServiceClass(container.get(Dependency));
-    })
-    .asSingleton();
+  .register(ServiceClass)
+  .useFactory((container) => {
+    return new ServiceClass(container.get(Dependency));
+  })
+  .asSingleton();
 ```
 
 ### Instance Registration
@@ -101,7 +101,11 @@ registry.register(ServiceArray).useArray(ServiceArray).push(ImplA).push(ImplB);
 ### Map Collection
 
 ```typescript
-registry.register(ServiceMap).useMap(ServiceMap).set('key1', ImplA).set('key2', ImplB);
+registry
+  .register(ServiceMap)
+  .useMap(ServiceMap)
+  .set("key1", ImplA)
+  .set("key2", ImplB);
 // Resolves to Map with entries { 'key1' => ImplA instance, 'key2' => ImplB instance }
 ```
 
@@ -127,14 +131,14 @@ Register abstract classes with concrete implementations:
 
 ```typescript
 abstract class Repository {
-    abstract find(id: string): any;
+  abstract find(id: string): any;
 }
 
 @Injectable()
 class UserRepository extends Repository {
-    find(id: string) {
-        return null;
-    }
+  find(id: string) {
+    return null;
+  }
 }
 
 registry.register(Repository).useClass(UserRepository).asSingleton();
@@ -173,12 +177,12 @@ scoped.override(SomeService, mockInstance);
 Singletons traverse up to root container before storing:
 
 ```typescript
-if (registration.lifetime === 'singleton') {
-    let container = this;
-    while (container._parent) {
-        container = container._parent;
-    }
-    container._instances.set(id, instance);
+if (registration.lifetime === "singleton") {
+  let container = this;
+  while (container._parent) {
+    container = container._parent;
+  }
+  container._instances.set(id, instance);
 }
 ```
 
