@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve build cache
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ./*
+          key: build-cache-${{ github.sha }}
+          fail-on-cache-miss: true
+    
+      - name: Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+            publish: pnpm publish --no-git-checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
