@@ -14,6 +14,9 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Retrieve build cache
         id: cache
         uses: actions/cache/restore@v5
