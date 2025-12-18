@@ -39,11 +39,10 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --sourcemap --dts && tsc --emitDeclarationOnly --declaration",
-    "build:ci": "pnpm run check && pnpm run build",
+    "build:ci": "eslint --max-warnings=0 && pnpm run build",
     "changeset": "changeset && changeset version",
-    "lint": "eslint",
-    "format": "prettier",
-    "check": "prettier --write . && eslint --fix",
+    "lint": "eslint --fix",
+    "format": "prettier --write . ",   
     "test": "vitest run",
     "test:ci": "vitest run --coverage "
   },

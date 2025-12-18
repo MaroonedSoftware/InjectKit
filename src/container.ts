@@ -1,10 +1,5 @@
-import {
-  Container,
-  Identifier,
-  Instance,
-  ScopedContainer,
-} from "./interfaces.js";
-import { Registration } from "./internal.js";
+import { Container, Identifier, Instance, ScopedContainer } from './interfaces.js';
+import { Registration } from './internal.js';
 
 /**
  * Implementation of the dependency injection container.
@@ -20,10 +15,7 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @param parent Optional parent container for scoped container hierarchies.
    */
   constructor(
-    private readonly registrations: Map<
-      Identifier<unknown>,
-      Registration<unknown>
-    >,
+    private readonly registrations: Map<Identifier<unknown>, Registration<unknown>>,
     private readonly parent?: InjectKitContainer,
   ) {}
 
@@ -38,10 +30,7 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @returns A new or cached instance of type T.
    * @throws {Error} If the registration is invalid (no constructor, factory, or instance provided).
    */
-  private createInstance<T>(
-    id: Identifier<T>,
-    registration: Registration<T>,
-  ): T {
+  private createInstance<T>(id: Identifier<T>, registration: Registration<T>): T {
     let instance: T;
 
     if (registration.constructor) {
@@ -60,24 +49,18 @@ export class InjectKitContainer implements ScopedContainer, Container {
     }
 
     if (registration.collectionDependencies) {
-      if (
-        Array.isArray(registration.collectionDependencies) &&
-        instance instanceof Array
-      ) {
+      if (Array.isArray(registration.collectionDependencies) && instance instanceof Array) {
         for (const dependency of registration.collectionDependencies) {
           instance.push(this.get(dependency));
         }
-      } else if (
-        registration.collectionDependencies instanceof Map &&
-        instance instanceof Map
-      ) {
+      } else if (registration.collectionDependencies instanceof Map && instance instanceof Map) {
         for (const [key, dependency] of registration.collectionDependencies) {
           instance.set(key, this.get(dependency));
         }
       }
     }
 
-    if (registration.lifetime === "singleton") {
+    if (registration.lifetime === 'singleton') {
       // @eslint-disable-next-line @typescript-eslint/no-this-alias
       let container: InjectKitContainer = this;
 
@@ -86,7 +69,7 @@ export class InjectKitContainer implements ScopedContainer, Container {
       }
 
       container.instances.set(id, instance);
-    } else if (registration.lifetime === "scoped") {
+    } else if (registration.lifetime === 'scoped') {
       this.instances.set(id, instance);
     }
 
@@ -125,7 +108,7 @@ export class InjectKitContainer implements ScopedContainer, Container {
       throw new Error(`Registration for ${id.name} not found`);
     }
 
-    if (registration.lifetime !== "transient") {
+    if (registration.lifetime !== 'transient') {
       const instance = this.getScopedInstance<T>(id);
       if (instance) {
         return instance;
@@ -154,7 +137,7 @@ export class InjectKitContainer implements ScopedContainer, Container {
   public override<T>(id: Identifier<T>, instance: Instance<T>): void {
     this.registrations.set(id, {
       constructor: undefined,
-      lifetime: "scoped",
+      lifetime: 'scoped',
       dependencies: [],
       ctorDependencies: [],
       factory: undefined,

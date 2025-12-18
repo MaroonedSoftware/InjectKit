@@ -1,5 +1,9 @@
 # InjectKit
 
+[![codecov](https://codecov.io/github/MaroonedSoftware/InjectKit/graph/badge.svg?token=suXBzveqVf)](https://codecov.io/github/MaroonedSoftware/InjectKit)
+
+---
+
 <p align="center">
   <strong>A lightweight, type-safe dependency injection container for TypeScript</strong>
 </p>
@@ -56,14 +60,14 @@ yarn add injectkit reflect-metadata
 - Import `reflect-metadata` **once** at your application entry point:
 
 ```typescript
-import "reflect-metadata";
+import 'reflect-metadata';
 ```
 
 ## Quick Start
 
 ```typescript
-import "reflect-metadata";
-import { Injectable, InjectKitRegistry, Container } from "injectkit";
+import 'reflect-metadata';
+import { Injectable, InjectKitRegistry, Container } from 'injectkit';
 
 // 1. Decorate your classes with @Injectable()
 @Injectable()
@@ -93,7 +97,7 @@ const container = registry.build();
 
 // 4. Resolve and use your services
 const userService = container.get(UserService);
-userService.createUser("Alice");
+userService.createUser('Alice');
 ```
 
 ## Core Concepts
@@ -198,7 +202,7 @@ Register a service using a factory function. Useful for complex initialization o
 ```typescript
 registry
   .register(DatabaseConnection)
-  .useFactory((container) => {
+  .useFactory(container => {
     const config = container.get(ConfigService);
     return new DatabaseConnection({
       host: config.dbHost,
@@ -213,7 +217,7 @@ registry
 Register an existing instance directly. Always behaves as a singleton.
 
 ```typescript
-const config = new ConfigService({ env: "production" });
+const config = new ConfigService({ env: 'production' });
 registry.register(ConfigService).useInstance(config);
 ```
 
@@ -240,15 +244,11 @@ class Handlers extends Array<Handler> {}
 // Registration
 registry.register(JsonHandler).useClass(JsonHandler).asSingleton();
 registry.register(XmlHandler).useClass(XmlHandler).asSingleton();
-registry
-  .register(Handlers)
-  .useArray(Handlers)
-  .push(JsonHandler)
-  .push(XmlHandler);
+registry.register(Handlers).useArray(Handlers).push(JsonHandler).push(XmlHandler);
 
 // Usage
 const handlers = container.get(Handlers);
-handlers.forEach((h) => h.handle(data));
+handlers.forEach(h => h.handle(data));
 ```
 
 #### `useMap(constructor)`
@@ -259,15 +259,11 @@ Register a keyed collection of implementations.
 @Injectable()
 class ProcessorMap extends Map<string, Processor> {}
 
-registry
-  .register(ProcessorMap)
-  .useMap(ProcessorMap)
-  .set("fast", FastProcessor)
-  .set("accurate", AccurateProcessor);
+registry.register(ProcessorMap).useMap(ProcessorMap).set('fast', FastProcessor).set('accurate', AccurateProcessor);
 
 // Usage
 const processors = container.get(ProcessorMap);
-const processor = processors.get("fast");
+const processor = processors.get('fast');
 ```
 
 ### Container Methods
@@ -413,9 +409,9 @@ registry.build(); // ❌ Error: Service not decorated: ForgotDecorator
 InjectKit makes testing easy with scoped overrides:
 
 ```typescript
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from 'vitest';
 
-describe("UserService", () => {
+describe('UserService', () => {
   let scope: ScopedContainer;
   let mockDb: DatabaseService;
 
@@ -423,13 +419,13 @@ describe("UserService", () => {
     scope = container.createScopedContainer();
 
     mockDb = {
-      query: vi.fn().mockResolvedValue([{ id: "1", name: "Test" }]),
+      query: vi.fn().mockResolvedValue([{ id: '1', name: 'Test' }]),
     } as unknown as DatabaseService;
 
     scope.override(DatabaseService, mockDb);
   });
 
-  it("should fetch users", async () => {
+  it('should fetch users', async () => {
     const userService = scope.get(UserService);
     const users = await userService.getUsers();
 

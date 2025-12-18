@@ -3,6 +3,7 @@
  * @template T The type of instance that this constructor creates.
  */
 export interface Constructor<T> extends Function {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   new (...args: any[]): T;
 }
 
@@ -95,7 +96,7 @@ export type Factory<T> = (container: Container) => T;
  * - 'transient': A new instance created every time it's requested
  * - 'scoped': One instance per scoped container
  */
-export type Lifetime = "singleton" | "transient" | "scoped";
+export type Lifetime = 'singleton' | 'transient' | 'scoped';
 
 /**
  * Fluent interface for configuring registration lifetime.
@@ -185,9 +186,7 @@ export interface RegistrationType<T> {
    * @param constructor The constructor function for the array type (must extend Array).
    * @returns Registration array options for chaining push() calls to add implementations.
    */
-  useArray<U extends ArrayType<T>>(
-    constructor: Constructor<T>,
-  ): RegistrationArray<U>;
+  useArray<U extends ArrayType<T>>(constructor: Constructor<T>): RegistrationArray<U>;
 
   /**
    * Registers a service as a map type, allowing multiple implementations to be collected.
@@ -197,9 +196,7 @@ export interface RegistrationType<T> {
    * @param constructor The constructor function for the map type (must extend Map).
    * @returns Registration map options for chaining set() calls to add implementations.
    */
-  useMap<U extends MapType<T>>(
-    constructor: Constructor<T>,
-  ): RegistrationMap<U[0], U[1]>;
+  useMap<U extends MapType<T>>(constructor: Constructor<T>): RegistrationMap<U[0], U[1]>;
 }
 
 /**

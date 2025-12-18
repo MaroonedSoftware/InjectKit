@@ -1,4 +1,4 @@
-import "reflect-metadata";
+import 'reflect-metadata';
 import {
   Constructor,
   Factory,
@@ -14,9 +14,9 @@ import {
   RegistrationArray,
   MapType,
   RegistrationMap,
-} from "./interfaces.js";
-import { InjectKitContainer } from "./container.js";
-import { Registration } from "./internal.js";
+} from './interfaces.js';
+import { InjectKitContainer } from './container.js';
+import { Registration } from './internal.js';
 
 /**
  * Registry implementation for managing service registrations.
@@ -27,10 +27,7 @@ import { Registration } from "./internal.js";
  */
 export class InjectKitRegistry implements Registry {
   /** Internal map storing all service registrations by their identifier. */
-  private readonly registrations: Map<
-    Identifier<unknown>,
-    InjectKitRegistration<unknown>
-  > = new Map();
+  private readonly registrations: Map<Identifier<unknown>, InjectKitRegistration<unknown>> = new Map();
 
   /**
    * Registers a service with the registry.
@@ -76,9 +73,7 @@ export class InjectKitRegistry implements Registry {
    * @param registrations Map of all registrations to verify.
    * @throws {Error} If any service has dependencies that are not registered.
    */
-  private static verifyRegistrations(
-    registrations: Map<Identifier<unknown>, Registration<unknown>>,
-  ) {
+  private static verifyRegistrations(registrations: Map<Identifier<unknown>, Registration<unknown>>) {
     const missingDependencies: string[] = [];
 
     for (const [id, config] of registrations.entries()) {
@@ -89,9 +84,7 @@ export class InjectKitRegistry implements Registry {
       }
 
       if (missingDependencies.length > 0) {
-        throw new Error(
-          `Missing dependencies for ${id.name}: ${missingDependencies.join(", ")}`,
-        );
+        throw new Error(`Missing dependencies for ${id.name}: ${missingDependencies.join(', ')}`);
       }
     }
   }
@@ -102,36 +95,22 @@ export class InjectKitRegistry implements Registry {
    * @param registrations Map of all registrations to verify.
    * @throws {Error} If a circular dependency is detected.
    */
-  private static verifyNoCircularDependencies(
-    registrations: Map<Identifier<unknown>, Registration<unknown>>,
-  ) {
+  private static verifyNoCircularDependencies(registrations: Map<Identifier<unknown>, Registration<unknown>>) {
     /**
      * Recursively checks for circular dependencies starting from a given identifier.
      * @param id The identifier to check for circular dependencies.
      * @param registration The registration configuration for the identifier.
      * @param dependencies The path of dependencies traversed so far (for error reporting).
      */
-    const checkCircularDependencies = (
-      id: Identifier<unknown>,
-      registration: Registration<unknown>,
-      dependencies: string[],
-    ) => {
+    const checkCircularDependencies = (id: Identifier<unknown>, registration: Registration<unknown>, dependencies: string[]) => {
       for (const dependency of registration.dependencies) {
         if (id === dependency) {
-          throw new Error(
-            `Circular dependency found: ${[id.name, ...dependencies, id.name].join(" -> ")}`,
-          );
+          throw new Error(`Circular dependency found: ${[id.name, ...dependencies, id.name].join(' -> ')}`);
         }
 
         const dependencyRegistration = registrations.get(dependency);
-        if (
-          dependencyRegistration &&
-          dependencyRegistration.dependencies.length > 0
-        ) {
-          checkCircularDependencies(id, dependencyRegistration, [
-            ...dependencies,
-            dependency.name,
-          ]);
+        if (dependencyRegistration && dependencyRegistration.dependencies.length > 0) {
+          checkCircularDependencies(id, dependencyRegistration, [...dependencies, dependency.name]);
         }
       }
     };
@@ -157,7 +136,7 @@ export class InjectKitRegistry implements Registry {
 
     if (!this.isRegistered(Container)) {
       registrations.set(Container, {
-        lifetime: "singleton",
+        lifetime: 'singleton',
         dependencies: [],
         ctorDependencies: [],
         collectionDependencies: undefined,
@@ -181,13 +160,7 @@ export class InjectKitRegistry implements Registry {
  * @template T The type being registered.
  * @internal
  */
-class InjectKitRegistration<T>
-  implements
-    RegistrationType<T>,
-    RegistrationLifeTime,
-    RegistrationArray<T>,
-    RegistrationMap<unknown, T>
-{
+class InjectKitRegistration<T> implements RegistrationType<T>, RegistrationLifeTime, RegistrationArray<T>, RegistrationMap<unknown, T> {
   /** Optional constructor function for class-based registration. */
   private ctor: Constructor<T> | undefined = undefined;
   /** Optional factory function for factory-based registration. */
@@ -197,9 +170,10 @@ class InjectKitRegistration<T>
   /** Optional collection of identifiers for array-based registration. */
   private collection: Array<Identifier<T>> | undefined = undefined;
   /** Optional collection of identifiers for map-based registration. */
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   private map: Map<any, Identifier<T>> | undefined = undefined;
   /** The lifetime management strategy for this registration. */
-  private lifetime: Lifetime = "transient";
+  private lifetime: Lifetime = 'transient';
 
   /**
    * Registers a service using a constructor class.
@@ -227,7 +201,7 @@ class InjectKitRegistration<T>
    */
   useInstance(instance: Instance<T>): void {
     this.instance = instance;
-    this.lifetime = "singleton";
+    this.lifetime = 'singleton';
   }
 
   /**
@@ -248,9 +222,7 @@ class InjectKitRegistration<T>
    *     .push(SmsNotifier);
    * ```
    */
-  useArray<U extends ArrayType<T>>(
-    constructor: Constructor<T>,
-  ): RegistrationArray<U> {
+  useArray<U extends ArrayType<T>>(constructor: Constructor<T>): RegistrationArray<U> {
     this.collection = [];
     this.ctor = constructor;
     return this as unknown as RegistrationArray<U>;
@@ -274,9 +246,7 @@ class InjectKitRegistration<T>
    *     .set('sms', SmsService);
    * ```
    */
-  useMap<U extends MapType<T>>(
-    constructor: Constructor<T>,
-  ): RegistrationMap<U[0], U[1]> {
+  useMap<U extends MapType<T>>(constructor: Constructor<T>): RegistrationMap<U[0], U[1]> {
     this.map = new Map();
     this.ctor = constructor;
     return this as unknown as RegistrationMap<U[0], U[1]>;
@@ -286,21 +256,21 @@ class InjectKitRegistration<T>
    * Sets the lifetime to singleton (one instance shared across the container).
    */
   asSingleton(): void {
-    this.lifetime = "singleton";
+    this.lifetime = 'singleton';
   }
 
   /**
    * Sets the lifetime to transient (new instance created each time).
    */
   asTransient(): void {
-    this.lifetime = "transient";
+    this.lifetime = 'transient';
   }
 
   /**
    * Sets the lifetime to scoped (one instance per scoped container).
    */
   asScoped(): void {
-    this.lifetime = "scoped";
+    this.lifetime = 'scoped';
   }
 
   /**
@@ -367,16 +337,12 @@ class InjectKitRegistration<T>
    * @returns Array of dependency identifiers.
    * @throws {Error} If the service is not properly decorated with dependency injection metadata.
    */
-  private static getDependencies<T>(
-    target: Abstract<T>,
-    parents: string[],
-  ): any {
-    const dependencies = Reflect.getMetadata("design:paramtypes", target) ?? [];
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  private static getDependencies<T>(target: Abstract<T>, parents: string[]): any {
+    const dependencies = Reflect.getMetadata('design:paramtypes', target) ?? [];
 
     if (dependencies.length < target.length) {
-      throw new Error(
-        `Service not decorated: ${[...parents, target.name].join(" -> ")}`,
-      );
+      throw new Error(`Service not decorated: ${[...parents, target.name].join(' -> ')}`);
     }
 
     if (dependencies.length > 0) {

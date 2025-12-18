@@ -1,10 +1,4 @@
-import {
-  Constructor,
-  Factory,
-  Identifier,
-  Instance,
-  Lifetime,
-} from "./interfaces.js";
+import { Constructor, Factory, Identifier, Instance, Lifetime } from './interfaces.js';
 
 /**
  * Internal representation of a service registration in the container.
@@ -33,7 +27,5 @@ export type Registration<T> = {
    * For arrays: Array of identifiers that will be resolved and pushed to the array.
    * For maps: Map of key-value pairs where values are identifiers that will be resolved and stored.
    */
-  collectionDependencies?:
-    | Array<Identifier<unknown>>
-    | Map<unknown, Identifier<unknown>>;
+  collectionDependencies?: Array<Identifier<unknown>> | Map<unknown, Identifier<unknown>>;
 };

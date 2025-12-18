@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { InjectKitRegistry, Injectable, Container } from "../src/index.js";
+import { describe, it, expect, beforeEach } from 'vitest';
+import { InjectKitRegistry, Injectable, Container } from '../src/index.js';
 
 // Test fixtures
 @Injectable()
 class SimpleService {
   getValue() {
-    return "simple";
+    return 'simple';
   }
 }
 
@@ -35,7 +35,7 @@ abstract class AbstractService {
 @Injectable()
 class ConcreteService extends AbstractService {
   getValue() {
-    return "concrete";
+    return 'concrete';
   }
 }
 
@@ -101,63 +101,60 @@ class SmsNotifier extends AbstractNotifier {
 @Injectable()
 class ServiceMap extends Map<string, AbstractService> {}
 
-describe("InjectKitRegistry", () => {
+describe('InjectKitRegistry', () => {
   let registry: InjectKitRegistry;
 
   beforeEach(() => {
     registry = new InjectKitRegistry();
   });
 
-  describe("register", () => {
-    it("should register a simple service", () => {
+  describe('register', () => {
+    it('should register a simple service', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       expect(registry.isRegistered(SimpleService)).toBe(true);
     });
 
-    it("should throw when registering the same service twice", () => {
+    it('should throw when registering the same service twice', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       expect(() => {
         registry.register(SimpleService).useClass(SimpleService).asSingleton();
-      }).toThrow("Registration for SimpleService already exists");
+      }).toThrow('Registration for SimpleService already exists');
     });
 
-    it("should register an abstract class with a concrete implementation", () => {
-      registry
-        .register(AbstractService)
-        .useClass(ConcreteService)
-        .asSingleton();
+    it('should register an abstract class with a concrete implementation', () => {
+      registry.register(AbstractService).useClass(ConcreteService).asSingleton();
       expect(registry.isRegistered(AbstractService)).toBe(true);
     });
   });
 
-  describe("remove", () => {
-    it("should remove a registered service", () => {
+  describe('remove', () => {
+    it('should remove a registered service', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       expect(registry.isRegistered(SimpleService)).toBe(true);
       registry.remove(SimpleService);
       expect(registry.isRegistered(SimpleService)).toBe(false);
     });
 
-    it("should throw when removing a non-existent registration", () => {
+    it('should throw when removing a non-existent registration', () => {
       expect(() => {
         registry.remove(SimpleService);
-      }).toThrow("Registration for SimpleService not found");
+      }).toThrow('Registration for SimpleService not found');
     });
   });
 
-  describe("isRegistered", () => {
-    it("should return false for non-registered service", () => {
+  describe('isRegistered', () => {
+    it('should return false for non-registered service', () => {
       expect(registry.isRegistered(SimpleService)).toBe(false);
     });
 
-    it("should return true for registered service", () => {
+    it('should return true for registered service', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       expect(registry.isRegistered(SimpleService)).toBe(true);
     });
   });
 
-  describe("useClass", () => {
-    it("should register with singleton lifetime", () => {
+  describe('useClass', () => {
+    it('should register with singleton lifetime', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       const container = registry.build();
       const instance1 = container.get(SimpleService);
@@ -165,7 +162,7 @@ describe("InjectKitRegistry", () => {
       expect(instance1).toBe(instance2);
     });
 
-    it("should register with transient lifetime", () => {
+    it('should register with transient lifetime', () => {
       registry.register(SimpleService).useClass(SimpleService).asTransient();
       const container = registry.build();
       const instance1 = container.get(SimpleService);
@@ -173,7 +170,7 @@ describe("InjectKitRegistry", () => {
       expect(instance1).not.toBe(instance2);
     });
 
-    it("should register with scoped lifetime", () => {
+    it('should register with scoped lifetime', () => {
       registry.register(SimpleService).useClass(SimpleService).asScoped();
       const container = registry.build();
       const scoped1 = container.createScopedContainer();
@@ -188,8 +185,8 @@ describe("InjectKitRegistry", () => {
     });
   });
 
-  describe("useFactory", () => {
-    it("should create instance using factory function", () => {
+  describe('useFactory', () => {
+    it('should create instance using factory function', () => {
       let callCount = 0;
       registry.register(SimpleService).useFactory(() => {
         callCount++;
@@ -201,17 +198,17 @@ describe("InjectKitRegistry", () => {
       expect(callCount).toBe(2); // transient by default
     });
 
-    it("should pass container to factory function", () => {
+    it('should pass container to factory function', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
-      registry.register(DependentService).useFactory((c) => {
+      registry.register(DependentService).useFactory(c => {
         return new DependentService(c.get(SimpleService));
       });
       const container = registry.build();
       const instance = container.get(DependentService);
-      expect(instance.getValue()).toBe("dependent-simple");
+      expect(instance.getValue()).toBe('dependent-simple');
     });
 
-    it("should respect singleton lifetime with factory", () => {
+    it('should respect singleton lifetime with factory', () => {
       let callCount = 0;
       registry
         .register(SimpleService)
@@ -227,15 +224,15 @@ describe("InjectKitRegistry", () => {
     });
   });
 
-  describe("useInstance", () => {
-    it("should use the provided instance", () => {
+  describe('useInstance', () => {
+    it('should use the provided instance', () => {
       const instance = new SimpleService();
       registry.register(SimpleService).useInstance(instance);
       const container = registry.build();
       expect(container.get(SimpleService)).toBe(instance);
     });
 
-    it("should always return the same instance", () => {
+    it('should always return the same instance', () => {
       const instance = new SimpleService();
       registry.register(SimpleService).useInstance(instance);
       const container = registry.build();
@@ -246,31 +243,24 @@ describe("InjectKitRegistry", () => {
     });
   });
 
-  describe("useArray", () => {
-    it("should collect multiple implementations into an array", () => {
+  describe('useArray', () => {
+    it('should collect multiple implementations into an array', () => {
       registry.register(EmailNotifier).useClass(EmailNotifier).asSingleton();
       registry.register(SmsNotifier).useClass(SmsNotifier).asSingleton();
-      registry
-        .register(NotificationArray)
-        .useArray(NotificationArray)
-        .push(EmailNotifier)
-        .push(SmsNotifier);
+      registry.register(NotificationArray).useArray(NotificationArray).push(EmailNotifier).push(SmsNotifier);
 
       const container = registry.build();
       const notifiers = container.get(NotificationArray);
 
       expect(notifiers).toBeInstanceOf(Array);
       expect(notifiers.length).toBe(2);
-      expect(notifiers[0].notify("test")).toBe("email: test");
-      expect(notifiers[1].notify("test")).toBe("sms: test");
+      expect(notifiers[0].notify('test')).toBe('email: test');
+      expect(notifiers[1].notify('test')).toBe('sms: test');
     });
 
-    it("should resolve each item in the array", () => {
+    it('should resolve each item in the array', () => {
       registry.register(EmailNotifier).useClass(EmailNotifier).asSingleton();
-      registry
-        .register(NotificationArray)
-        .useArray(NotificationArray)
-        .push(EmailNotifier);
+      registry.register(NotificationArray).useArray(NotificationArray).push(EmailNotifier);
 
       const container = registry.build();
       const notifiers = container.get(NotificationArray);
@@ -280,67 +270,54 @@ describe("InjectKitRegistry", () => {
     });
   });
 
-  describe("useMap", () => {
-    it("should collect multiple implementations into a map", () => {
-      registry
-        .register(ConcreteService)
-        .useClass(ConcreteService)
-        .asSingleton();
-      registry
-        .register(ServiceMap)
-        .useMap(ServiceMap)
-        .set("primary", ConcreteService);
+  describe('useMap', () => {
+    it('should collect multiple implementations into a map', () => {
+      registry.register(ConcreteService).useClass(ConcreteService).asSingleton();
+      registry.register(ServiceMap).useMap(ServiceMap).set('primary', ConcreteService);
 
       const container = registry.build();
       const serviceMap = container.get(ServiceMap);
 
       expect(serviceMap).toBeInstanceOf(Map);
-      expect(serviceMap.get("primary")?.getValue()).toBe("concrete");
+      expect(serviceMap.get('primary')?.getValue()).toBe('concrete');
     });
 
-    it("should support multiple entries in the map", () => {
+    it('should support multiple entries in the map', () => {
       @Injectable()
       class AnotherService extends AbstractService {
         getValue() {
-          return "another";
+          return 'another';
         }
       }
 
-      registry
-        .register(ConcreteService)
-        .useClass(ConcreteService)
-        .asSingleton();
+      registry.register(ConcreteService).useClass(ConcreteService).asSingleton();
       registry.register(AnotherService).useClass(AnotherService).asSingleton();
-      registry
-        .register(ServiceMap)
-        .useMap(ServiceMap)
-        .set("primary", ConcreteService)
-        .set("secondary", AnotherService);
+      registry.register(ServiceMap).useMap(ServiceMap).set('primary', ConcreteService).set('secondary', AnotherService);
 
       const container = registry.build();
       const serviceMap = container.get(ServiceMap);
 
       expect(serviceMap.size).toBe(2);
-      expect(serviceMap.get("primary")?.getValue()).toBe("concrete");
-      expect(serviceMap.get("secondary")?.getValue()).toBe("another");
+      expect(serviceMap.get('primary')?.getValue()).toBe('concrete');
+      expect(serviceMap.get('secondary')?.getValue()).toBe('another');
     });
   });
 
-  describe("build", () => {
-    it("should build a container", () => {
+  describe('build', () => {
+    it('should build a container', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       const container = registry.build();
       expect(container).toBeDefined();
     });
 
-    it("should automatically register Container itself", () => {
+    it('should automatically register Container itself', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       const container = registry.build();
       const resolvedContainer = container.get(Container);
       expect(resolvedContainer).toBe(container);
     });
 
-    it("should not override custom Container registration", () => {
+    it('should not override custom Container registration', () => {
       const customContainer = {} as Container;
       registry.register(Container).useInstance(customContainer);
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
@@ -349,45 +326,35 @@ describe("InjectKitRegistry", () => {
     });
   });
 
-  describe("dependency validation", () => {
-    it("should detect missing dependencies", () => {
-      registry
-        .register(DependentService)
-        .useClass(DependentService)
-        .asSingleton();
+  describe('dependency validation', () => {
+    it('should detect missing dependencies', () => {
+      registry.register(DependentService).useClass(DependentService).asSingleton();
       // SimpleService is not registered but DependentService depends on it
-      expect(() => registry.build()).toThrow(
-        "Missing dependencies for DependentService: SimpleService",
-      );
+      expect(() => registry.build()).toThrow('Missing dependencies for DependentService: SimpleService');
     });
 
-    it("should pass validation when all dependencies are registered", () => {
+    it('should pass validation when all dependencies are registered', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
-      registry
-        .register(DependentService)
-        .useClass(DependentService)
-        .asSingleton();
+      registry.register(DependentService).useClass(DependentService).asSingleton();
       expect(() => registry.build()).not.toThrow();
     });
   });
 
-  describe("circular dependencies", () => {
+  describe('circular dependencies', () => {
     // Note: Testing circular dependencies with classes that reference each other
     // directly in constructors is difficult due to TypeScript forward reference limitations.
     // These tests verify the detection logic works when metadata is properly captured.
-    it("should detect direct circular dependency", () => {
+    it('should detect direct circular dependency', () => {
       const registry = new InjectKitRegistry();
       registry.register(ITestCircularService1).useClass(TestCircularService1);
       registry.register(ITestCircularService2).useClass(TestCircularService2);
 
       expect(() => {
         registry.build();
-      }).toThrow(
-        "Circular dependency found: ITestCircularService1 -> ITestCircularService2 -> ITestCircularService1",
-      );
+      }).toThrow('Circular dependency found: ITestCircularService1 -> ITestCircularService2 -> ITestCircularService1');
     });
 
-    it("should detect indirect circular dependency", () => {
+    it('should detect indirect circular dependency', () => {
       const registry = new InjectKitRegistry();
       registry.register(ITestCircularService3).useClass(TestCircularService3);
       registry.register(ITestCircularService4).useClass(TestCircularService4);
@@ -395,67 +362,50 @@ describe("InjectKitRegistry", () => {
 
       expect(() => {
         registry.build();
-      }).toThrow(
-        "Circular dependency found: ITestCircularService3 -> ITestCircularService4 -> ITestCircularService5 -> ITestCircularService3",
-      );
+      }).toThrow('Circular dependency found: ITestCircularService3 -> ITestCircularService4 -> ITestCircularService5 -> ITestCircularService3');
     });
   });
 
-  describe("dependency resolution", () => {
-    it("should resolve simple dependencies", () => {
+  describe('dependency resolution', () => {
+    it('should resolve simple dependencies', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
-      registry
-        .register(DependentService)
-        .useClass(DependentService)
-        .asSingleton();
+      registry.register(DependentService).useClass(DependentService).asSingleton();
       const container = registry.build();
       const dependent = container.get(DependentService);
-      expect(dependent.getValue()).toBe("dependent-simple");
+      expect(dependent.getValue()).toBe('dependent-simple');
     });
 
-    it("should resolve deep dependencies", () => {
+    it('should resolve deep dependencies', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
-      registry
-        .register(DependentService)
-        .useClass(DependentService)
-        .asSingleton();
-      registry
-        .register(DeepDependentService)
-        .useClass(DeepDependentService)
-        .asSingleton();
+      registry.register(DependentService).useClass(DependentService).asSingleton();
+      registry.register(DeepDependentService).useClass(DeepDependentService).asSingleton();
       const container = registry.build();
       const deep = container.get(DeepDependentService);
-      expect(deep.getValue()).toBe("deep-dependent-simple");
+      expect(deep.getValue()).toBe('deep-dependent-simple');
     });
   });
 
-  describe("decorator validation", () => {
-    it("should throw when class is not decorated", () => {
+  describe('decorator validation', () => {
+    it('should throw when class is not decorated', () => {
       class UndecoratedService {
         constructor(public simple: SimpleService) {}
       }
 
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
-      registry
-        .register(UndecoratedService)
-        .useClass(UndecoratedService)
-        .asSingleton();
+      registry.register(UndecoratedService).useClass(UndecoratedService).asSingleton();
       expect(() => registry.build()).toThrow(/Service not decorated/);
     });
 
-    it("should allow undecorated class with no dependencies", () => {
+    it('should allow undecorated class with no dependencies', () => {
       class NoDependencyService {
         getValue() {
-          return "no-deps";
+          return 'no-deps';
         }
       }
 
-      registry
-        .register(NoDependencyService)
-        .useClass(NoDependencyService)
-        .asSingleton();
+      registry.register(NoDependencyService).useClass(NoDependencyService).asSingleton();
       const container = registry.build();
-      expect(container.get(NoDependencyService).getValue()).toBe("no-deps");
+      expect(container.get(NoDependencyService).getValue()).toBe('no-deps');
     });
   });
 });
