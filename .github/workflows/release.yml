@@ -26,9 +26,6 @@ jobs:
           key: build-cache-${{ github.sha }}
           fail-on-cache-miss: true
 
-      - name: Upgrade npm for OIDC support
-        run: npm install npm@latest
-
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
