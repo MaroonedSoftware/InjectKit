@@ -27,7 +27,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Upgrade npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install npm@latest
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
