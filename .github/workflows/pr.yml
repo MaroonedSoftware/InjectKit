@@ -7,3 +7,9 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
+  deploy:
+    needs: [pull-request]
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.head_ref }}

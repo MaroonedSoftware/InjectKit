@@ -1,0 +1,38 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: false
+        type: string
+        default: latest
+
+env:
+  CI: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve build cache
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ./*
+          key: build-cache-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Create and publish versions
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          commit: 'chore: update versions'
+          title: 'chore: update versions'
+          publish: pnpm publish --tag ${{ inputs.tag }} --no-git-checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
