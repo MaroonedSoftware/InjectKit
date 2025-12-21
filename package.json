@@ -1,6 +1,6 @@
 {
   "name": "injectkit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lightweight, type-safe dependency injection container for TypeScript with constructor injection, factory functions, and lifetime management.",
   "author": {
     "name": "Marooned Software",
@@ -41,7 +41,7 @@
     "build:ci": "eslint --max-warnings=0 && pnpm run build",
     "changeset": "changeset && changeset version",
     "lint": "eslint --fix",
-    "format": "prettier --write . ",   
+    "format": "prettier --write . ",
     "test": "vitest run",
     "test:ci": "vitest run --coverage "
   },
