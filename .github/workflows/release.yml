@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+permissions:
+  id-token: write # Required for OIDC
+  contents: read
+
 jobs:
   build:
     uses: ./.github/workflows/build.yml
@@ -21,15 +25,15 @@ jobs:
           path: ./*
           key: build-cache-${{ github.sha }}
           fail-on-cache-miss: true
-          
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-          
+
       - name: Publish
         id: changesets
         uses: changesets/action@v1
         with:
-            publish: pnpm publish --no-git-checks
+          publish: pnpm publish --no-git-checks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
