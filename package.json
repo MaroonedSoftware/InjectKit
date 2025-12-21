@@ -1,6 +1,6 @@
 {
   "name": "injectkit",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Lightweight, type-safe dependency injection container for TypeScript with constructor injection, factory functions, and lifetime management.",
   "author": {
     "name": "Marooned Software",

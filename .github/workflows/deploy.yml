@@ -6,7 +6,6 @@ on:
       tag:
         required: false
         type: string
-        default: latest
 
 env:
   CI: true
@@ -32,7 +31,7 @@ jobs:
         with:
           commit: 'chore: update versions'
           title: 'chore: update versions'
-          publish: pnpm publish --tag ${{ inputs.tag }} --no-git-checks
+          publish: pnpm publish --tag ${{ inputs.tag || 'latest' }} --no-git-checks
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
