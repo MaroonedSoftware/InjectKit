@@ -1,5 +1,11 @@
 # injectkit
 
+## 1.0.2
+
+### Patch Changes
+
+- fix workflows
+
 ## 1.0.1
 
 ### Patch Changes
