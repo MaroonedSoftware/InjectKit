@@ -13,8 +13,15 @@ export type Registration<T> = {
   /** Factory used for factory-based registrations. */
   factory?: Factory<T>;
 
-  /** Existing instance or value used for instance-based registrations. */
+  /**
+   * Existing instance or value used for instance-based registrations.
+   * May legitimately be `undefined` when `hasInstance` is true; use that flag
+   * rather than `instance !== undefined` to detect instance registrations.
+   */
   instance?: T;
+
+  /** True when the registration was configured with an explicit instance value. */
+  hasInstance?: boolean;
 
   /** Lifetime strategy used when resolving the registration. */
   lifetime: Lifetime;

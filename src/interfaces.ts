@@ -248,10 +248,17 @@ export type Override<T = unknown> =
  */
 export interface BuildOptions {
   /**
-   * When true, decorated classes known to the metadata registry are added if
-   * they have not already been registered explicitly.
+   * Controls auto-registration of decorator-marked classes.
+   *
+   * - `false` (default): only explicit registrations are used.
+   * - `true`: every injectable class known to the metadata registry is added
+   *   if it has not been registered explicitly. Convenient, but the default
+   *   metadata registry is process-global, so this can pull in classes from
+   *   unrelated modules. Prefer the array form in non-trivial apps.
+   * - `Class[]`: only the listed classes (and their inferred provide tokens)
+   *   are auto-registered. Recommended for production use.
    */
-  autoRegisterDecorated?: boolean;
+  autoRegisterDecorated?: boolean | readonly (Constructor<unknown> | Abstract<unknown>)[];
 
   /**
    * Registrations applied after explicit and decorated registrations.
