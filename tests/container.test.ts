@@ -118,6 +118,13 @@ describe('InjectKitContainer', () => {
       const resolvedContainer = container.get(Container);
       expect(resolvedContainer).toBe(container);
     });
+
+    it('should resolve string tokens', () => {
+      registry.register('database').useClass(DatabaseService).asSingleton();
+      const container = registry.build();
+      const db = container.get<DatabaseService>('database');
+      expect(db.connect()).toBe('connected');
+    });
   });
 
   describe('hasRegistration', () => {
@@ -413,7 +420,7 @@ describe('InjectKitContainer', () => {
 
   describe('mixed lifetimes', () => {
     it('should handle mixed singleton and transient dependencies', () => {
-      @Injectable()
+      @Injectable({ deps: [DatabaseService, TransientService] })
       class MixedService {
         constructor(
           public singleton: DatabaseService,

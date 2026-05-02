@@ -8,5 +8,18 @@ export default defineProject({
     setupFiles: './tests/setup.ts',
     environment: 'node',
   },
-  plugins: [swc.vite()],
+  plugins: [
+    swc.vite({
+      jsc: {
+        parser: {
+          syntax: 'typescript',
+          decorators: true,
+        },
+        transform: {
+          decoratorMetadata: true,
+          legacyDecorator: true,
+        },
+      },
+    }),
+  ],
 });

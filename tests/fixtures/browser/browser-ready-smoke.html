@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InjectKit Browser Smoke</title>
+  </head>
+  <body>
+    <div id="status">pending</div>
+
+    <script type="module">
+      import { Injectable, InjectKitRegistry } from '../../../dist/browser/injectkit.js';
+
+      const status = document.getElementById('status');
+
+      try {
+        class Logger {
+          log(message) {
+            return `log:${message}`;
+          }
+        }
+
+        Injectable()(Logger);
+
+        class GreetingService {
+          constructor(logger) {
+            this.logger = logger;
+          }
+
+          greet(name) {
+            return this.logger.log(`hello:${name}`);
+          }
+        }
+
+        Injectable({ deps: [Logger] })(GreetingService);
+
+        const registry = new InjectKitRegistry();
+        registry.register(Logger).useClass(Logger).asSingleton();
+        registry.register(GreetingService).useClass(GreetingService).asSingleton();
+
+        const greetingService = registry.build().get(GreetingService);
+        const result = greetingService.greet('browser');
+
+        if (result !== 'log:hello:browser') {
+          throw new Error('Explicit deps were not resolved in the browser bundle');
+        }
+
+        status.textContent = 'ready';
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : String(error);
+      }
+    </script>
+  </body>
+</html>

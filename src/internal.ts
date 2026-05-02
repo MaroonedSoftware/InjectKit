@@ -1,4 +1,4 @@
-import { Constructor, Factory, Identifier, Instance, Lifetime } from './interfaces.js';
+import { Constructor, Factory, Lifetime, Token } from './interfaces.js';
 
 /**
  * Internal representation of a service registration in the container.
@@ -7,25 +7,24 @@ import { Constructor, Factory, Identifier, Instance, Lifetime } from './interfac
  * @internal
  */
 export type Registration<T> = {
-  /** Optional constructor function for class-based registration. */
+  /** Constructor used for class-based registrations. */
   constructor?: Constructor<T>;
-  /** Optional factory function for factory-based registration. */
+
+  /** Factory used for factory-based registrations. */
   factory?: Factory<T>;
-  /** Optional instance for instance-based registration. */
-  instance?: Instance<T>;
-  /** The lifetime management strategy for this registration. */
+
+  /** Existing instance or value used for instance-based registrations. */
+  instance?: T;
+
+  /** Lifetime strategy used when resolving the registration. */
   lifetime: Lifetime;
-  /**
-   * Array of all dependencies required by this registration.
-   * This is the union of ctorDependencies and collectionDependencies.
-   */
-  dependencies: Identifier<unknown>[];
-  /** Array of dependencies required by the constructor (extracted via reflection). */
-  ctorDependencies: Identifier<unknown>[];
-  /**
-   * Optional collection of dependencies for array or map registration.
-   * For arrays: Array of identifiers that will be resolved and pushed to the array.
-   * For maps: Map of key-value pairs where values are identifiers that will be resolved and stored.
-   */
-  collectionDependencies?: Array<Identifier<unknown>> | Map<unknown, Identifier<unknown>>;
+
+  /** All tokens that must exist in the final graph before build succeeds. */
+  dependencies: Token<unknown>[];
+
+  /** Constructor dependency tokens, resolved in parameter order. */
+  ctorDependencies: Token<unknown>[];
+
+  /** Collection item tokens for array and map registrations. */
+  collectionDependencies?: Array<Token<unknown>> | Map<unknown, Token<unknown>>;
 };

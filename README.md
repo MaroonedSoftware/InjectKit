@@ -12,6 +12,7 @@
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
+  <a href="#browser-usage">Browser Usage</a> •
   <a href="#core-concepts">Core Concepts</a> •
   <a href="#api-reference">API Reference</a> •
   <a href="#license">License</a>
@@ -22,7 +23,7 @@
 ## Features
 
 - 🎯 **Type-safe** — Full TypeScript support with strong typing throughout
-- 🪶 **Lightweight** — Minimal footprint with zero dependencies (except `reflect-metadata`)
+- 🪶 **Lightweight** — Minimal footprint with backwards-compatible reflection support
 - 🔄 **Multiple lifetimes** — Singleton, transient, and scoped instance management
 - 🏭 **Flexible registration** — Classes, factories, or existing instances
 - 📦 **Collection support** — Register arrays and maps of implementations
@@ -32,42 +33,27 @@
 ## Installation
 
 ```bash
-npm install injectkit reflect-metadata
+npm install injectkit
 ```
 
 ```bash
-pnpm add injectkit reflect-metadata
+pnpm add injectkit
 ```
 
 ```bash
-yarn add injectkit reflect-metadata
+yarn add injectkit
 ```
 
 ## Requirements
 
-- **Node.js** >= 20
-- **TypeScript** with the following compiler options enabled:
-
-```json
-{
-  "compilerOptions": {
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  }
-}
-```
-
-- Import `reflect-metadata` **once** at your application entry point:
-
-```typescript
-import 'reflect-metadata';
-```
+- **Node.js** >= 22
+- Existing `reflect-metadata` / `emitDecoratorMetadata` constructor injection remains supported
+- Explicit dependency metadata with `@Injectable({ deps: [...] })` is supported and recommended for portability
 
 ## Quick Start
 
 ```typescript
-import 'reflect-metadata';
-import { Injectable, InjectKitRegistry, Container } from 'injectkit';
+import { Injectable, InjectKitRegistry } from 'injectkit';
 
 // 1. Decorate your classes with @Injectable()
 @Injectable()
@@ -100,6 +86,49 @@ const userService = container.get(UserService);
 userService.createUser('Alice');
 ```
 
+InjectKit now also supports explicit dependency metadata. This is useful for browser builds, bundlers, and codebases that prefer not to rely on emitted TypeScript metadata:
+
+```typescript
+@Injectable({ deps: [Logger] })
+class UserService {
+  constructor(private logger: Logger) {}
+}
+```
+
+Explicit deps take priority when both explicit and reflected metadata are available, so projects can migrate gradually.
+
+## Browser Usage
+
+InjectKit also ships a browser-ready ESM build for direct `<script type="module">` usage.
+
+```html
+<script type="module">
+  import { Injectable, InjectKitRegistry } from './vendor/injectkit.js';
+
+  class Logger {
+    log(message) {
+      return `log:${message}`;
+    }
+  }
+
+  Injectable()(Logger);
+
+  class UserService {
+    constructor(logger) {
+      this.logger = logger;
+    }
+  }
+
+  Injectable({ deps: [Logger] })(UserService);
+
+  const registry = new InjectKitRegistry();
+  registry.register(Logger).useClass(Logger).asSingleton();
+  registry.register(UserService).useClass(UserService).asSingleton();
+</script>
+```
+
+The npm package exposes the browser build as `injectkit/browser`.
+
 ## Core Concepts
 
 ### Registry
@@ -124,22 +153,22 @@ const container = registry.build();
 
 ### Container
 
-The **Container** resolves and manages service instances at runtime. It automatically injects dependencies declared in constructors.
+The **Container** resolves and manages service instances at runtime. It injects dependencies from explicit `deps` metadata first, then falls back to legacy reflected constructor metadata.
 
 ```typescript
-// Resolve a service (dependencies are injected automatically)
+// Resolve a service with its configured dependencies
 const service = container.get(MyService);
 
 // The Container itself can be resolved for factory patterns
-const container = container.get(Container);
+const resolvedContainer = container.get(Container);
 ```
 
-### Identifier
+### Token
 
-An **Identifier** is a class constructor or abstract class used to register and resolve services. This enables programming to interfaces:
+A **Token** is a class constructor, abstract class, string, or symbol used to register and resolve services. This enables programming to interfaces:
 
 ```typescript
-// Abstract class as identifier
+// Abstract class as token
 abstract class Repository {
   abstract find(id: string): Promise<Entity>;
 }
@@ -181,7 +210,7 @@ registry.register(TempCalculation).useClass(TempCalculation).asTransient();
 
 #### `useClass(constructor)`
 
-Register a service using its constructor. Dependencies are automatically resolved from constructor parameters.
+Register a service using its constructor. Constructor dependencies are resolved from explicit `@Injectable({ deps: [...] })` metadata first, then from legacy reflected metadata when explicit deps are absent.
 
 ```typescript
 @Injectable()
@@ -193,6 +222,18 @@ class EmailService {
 }
 
 registry.register(EmailService).useClass(EmailService).asSingleton();
+```
+
+For explicit, portable metadata:
+
+```typescript
+@Injectable({ deps: [ConfigService, Logger] })
+class EmailService {
+  constructor(
+    private config: ConfigService,
+    private logger: Logger,
+  ) {}
+}
 ```
 
 #### `useFactory(factory)`
@@ -268,7 +309,7 @@ const processor = processors.get('fast');
 
 ### Container Methods
 
-#### `get<T>(identifier): T`
+#### `get<T>(token): T`
 
 Resolves an instance of the specified type.
 
@@ -276,7 +317,7 @@ Resolves an instance of the specified type.
 const service = container.get(MyService);
 ```
 
-#### `hasRegistration<T>(identifier): boolean`
+#### `hasRegistration<T>(token): boolean`
 
 Checks if a service has a registration with the container.
 
@@ -294,7 +335,7 @@ const requestScope = container.createScopedContainer();
 const requestService = requestScope.get(RequestScopedService);
 ```
 
-#### `override<T>(identifier, instance): void`
+#### `override<T>(token, instance): void`
 
 Overrides a registration within a scoped container. Perfect for testing.
 
@@ -312,21 +353,78 @@ const service = testScope.get(NotificationService);
 
 ### Registry Methods
 
-#### `register<T>(identifier): RegistrationType<T>`
+#### `register<T>(token): RegistrationType<T>`
 
 Starts a registration chain for a service.
 
-#### `remove<T>(identifier): void`
+#### `registerValue<T>(token, value): Registry`
+
+Registers an existing value for a class, string, or symbol token.
+
+```typescript
+registry.registerValue('env', { mode: 'production' });
+```
+
+#### `registerFactory<T>(token, factory, lifetime?): Registry`
+
+Registers a factory with an optional lifetime.
+
+```typescript
+registry.registerFactory(
+  ApiClient,
+  container => new ApiClient(container.get(ConfigService)),
+  'singleton',
+);
+```
+
+#### `remove<T>(token): void`
 
 Removes a registration from the registry.
 
-#### `isRegistered<T>(identifier): boolean`
+#### `isRegistered<T>(token): boolean`
 
 Checks if a service is already registered.
 
-#### `build(): Container`
+#### `build(options?): Container`
 
 Builds the container, validating all registrations.
+
+```typescript
+const container = registry.build({
+  autoRegisterDecorated: true,
+  overrides: [{ token: Logger, useClass: TestLogger, lifetime: 'singleton' }],
+});
+```
+
+### Decorators
+
+Decorators can be used in the legacy style:
+
+```typescript
+@Injectable()
+class UserService {
+  constructor(private logger: Logger) {}
+}
+```
+
+They can also declare constructor dependencies and default lifetimes:
+
+```typescript
+@Singleton({ deps: [Logger] })
+class UserService {
+  constructor(private logger: Logger) {}
+}
+```
+
+Use `@Provider(token)` when a decorated class should satisfy another token during auto-registration:
+
+```typescript
+const LOGGER = Symbol('LOGGER');
+
+@Provider(LOGGER)
+@Singleton()
+class ConsoleLogger {}
+```
 
 ## Scoped Containers
 
@@ -375,7 +473,7 @@ InjectKit validates your dependency graph when calling `build()`:
 ### Missing Dependencies
 
 ```typescript
-@Injectable()
+@Injectable({ deps: [DatabaseService] })
 class UserService {
   constructor(private db: DatabaseService) {} // Not registered!
 }
@@ -387,12 +485,12 @@ registry.build(); // ❌ Error: Missing dependencies for UserService: DatabaseSe
 ### Circular Dependencies
 
 ```typescript
-@Injectable()
+@Injectable({ deps: [ServiceB] })
 class ServiceA {
   constructor(private b: ServiceB) {}
 }
 
-@Injectable()
+@Injectable({ deps: [ServiceA] })
 class ServiceB {
   constructor(private a: ServiceA) {}
 }
@@ -402,15 +500,18 @@ registry.register(ServiceB).useClass(ServiceB).asSingleton();
 registry.build(); // ❌ Error: Circular dependency found: ServiceA -> ServiceB -> ServiceA
 ```
 
-### Missing Decorator
+### Missing Dependency Metadata
 
 ```typescript
-class ForgotDecorator {
+@Injectable()
+class MissingDepsService {
   constructor(private dep: SomeDependency) {}
 }
 
-registry.register(ForgotDecorator).useClass(ForgotDecorator).asSingleton();
-registry.build(); // ❌ Error: Service not decorated: ForgotDecorator
+registry.register(MissingDepsService).useClass(MissingDepsService).asSingleton();
+registry.build();
+// ❌ Error: Service dependency metadata unavailable: MissingDepsService.
+// Declare deps with @Injectable({ deps: [...] }) or enable legacy reflection metadata.
 ```
 
 ## Testing
@@ -448,6 +549,8 @@ describe('UserService', () => {
 
 Recommended `tsconfig.json` settings:
 
+For legacy reflected constructor injection:
+
 ```json
 {
   "compilerOptions": {
@@ -460,6 +563,17 @@ Recommended `tsconfig.json` settings:
   }
 }
 ```
+
+For explicit deps, `emitDecoratorMetadata` is optional:
+
+```typescript
+@Injectable({ deps: [Logger] })
+class UserService {
+  constructor(private logger: Logger) {}
+}
+```
+
+You can mix both styles while migrating. Explicit deps win when both are present.
 
 ## License
 

@@ -50,27 +50,27 @@ abstract class ITestCircularService4 {}
 
 abstract class ITestCircularService5 {}
 
-@Injectable()
+@Injectable({ deps: [ITestCircularService2] })
 class TestCircularService1 implements ITestCircularService1 {
   constructor(public dependency: ITestCircularService2) {}
 }
 
-@Injectable()
+@Injectable({ deps: [ITestCircularService1] })
 class TestCircularService2 implements ITestCircularService2 {
   constructor(public dependency: ITestCircularService1) {}
 }
 
-@Injectable()
+@Injectable({ deps: [ITestCircularService4] })
 class TestCircularService3 implements ITestCircularService3 {
   constructor(public dependency: ITestCircularService4) {}
 }
 
-@Injectable()
+@Injectable({ deps: [ITestCircularService5] })
 class TestCircularService4 implements ITestCircularService4 {
   constructor(public dependency: ITestCircularService5) {}
 }
 
-@Injectable()
+@Injectable({ deps: [ITestCircularService3] })
 class TestCircularService5 implements ITestCircularService5 {
   constructor(public dependency: ITestCircularService3) {}
 }
@@ -124,6 +124,12 @@ describe('InjectKitRegistry', () => {
     it('should register an abstract class with a concrete implementation', () => {
       registry.register(AbstractService).useClass(ConcreteService).asSingleton();
       expect(registry.isRegistered(AbstractService)).toBe(true);
+    });
+
+    it('should register a symbol token', () => {
+      const token = Symbol('SimpleService');
+      registry.register(token).useClass(SimpleService).asSingleton();
+      expect(registry.isRegistered(token)).toBe(true);
     });
   });
 
@@ -324,6 +330,22 @@ describe('InjectKitRegistry', () => {
       const container = registry.build();
       expect(container.get(Container)).toBe(customContainer);
     });
+
+    it('should apply build overrides last', () => {
+      registry.register(SimpleService).useClass(SimpleService).asSingleton();
+
+      class OverrideService extends SimpleService {
+        override getValue() {
+          return 'override';
+        }
+      }
+
+      const container = registry.build({
+        overrides: [{ token: SimpleService, useClass: OverrideService, lifetime: 'singleton' }],
+      });
+
+      expect(container.get(SimpleService).getValue()).toBe('override');
+    });
   });
 
   describe('dependency validation', () => {
@@ -367,7 +389,7 @@ describe('InjectKitRegistry', () => {
   });
 
   describe('dependency resolution', () => {
-    it('should resolve simple dependencies', () => {
+    it('should resolve simple dependencies using legacy reflect metadata', () => {
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       registry.register(DependentService).useClass(DependentService).asSingleton();
       const container = registry.build();
@@ -383,6 +405,29 @@ describe('InjectKitRegistry', () => {
       const deep = container.get(DeepDependentService);
       expect(deep.getValue()).toBe('deep-dependent-simple');
     });
+
+    it('should prefer explicit deps over legacy reflect metadata', () => {
+      @Injectable()
+      class ReflectDependency {
+        readonly source = 'reflect';
+      }
+
+      @Injectable()
+      class ExplicitDependency {
+        readonly source = 'explicit';
+      }
+
+      @Injectable({ deps: [ExplicitDependency] })
+      class ExplicitService {
+        constructor(public dependency: ReflectDependency) {}
+      }
+
+      registry.register(ExplicitDependency).useClass(ExplicitDependency).asSingleton();
+      registry.register(ExplicitService).useClass(ExplicitService).asSingleton();
+
+      const container = registry.build();
+      expect(container.get(ExplicitService).dependency).toBeInstanceOf(ExplicitDependency);
+    });
   });
 
   describe('decorator validation', () => {
@@ -393,7 +438,7 @@ describe('InjectKitRegistry', () => {
 
       registry.register(SimpleService).useClass(SimpleService).asSingleton();
       registry.register(UndecoratedService).useClass(UndecoratedService).asSingleton();
-      expect(() => registry.build()).toThrow(/Service not decorated/);
+      expect(() => registry.build()).toThrow(/Declare deps with @Injectable/);
     });
 
     it('should allow undecorated class with no dependencies', () => {

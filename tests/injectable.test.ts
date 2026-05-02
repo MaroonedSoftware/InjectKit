@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Injectable } from '../src/index.js';
+import {
+  Injectable,
+  Provider,
+  Singleton,
+  getDefaultMetadataRegistry,
+} from '../src/index.js';
 
 describe('Injectable decorator', () => {
   it('should return the original class', () => {
@@ -49,9 +54,9 @@ describe('Injectable decorator', () => {
       constructor(public readonly value: string) {}
     }
 
-    @Injectable()
+    @Injectable({ deps: [ConfigService] })
     class ServiceWithConfig {
-      constructor(public config: ConfigService) {}
+      constructor(public readonly config: ConfigService) {}
     }
 
     const config = new ConfigService('test-value');
@@ -59,54 +64,127 @@ describe('Injectable decorator', () => {
     expect(service.config.value).toBe('test-value');
   });
 
-  it('should emit metadata for reflect-metadata', () => {
+  it('should store explicit constructor dependencies in metadata', () => {
     @Injectable()
     class DependencyService {}
 
-    @Injectable()
+    @Injectable({ deps: [DependencyService] })
     class ServiceWithDependency {
-      constructor(public dep: DependencyService) {}
+      constructor(public readonly dep: DependencyService) {}
     }
 
-    const metadata = Reflect.getMetadata('design:paramtypes', ServiceWithDependency);
-    expect(metadata).toBeDefined();
-    expect(metadata).toHaveLength(1);
-    expect(metadata[0]).toBe(DependencyService);
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(metadataRegistry.getConstructorDependencies(ServiceWithDependency)).toEqual([
+      DependencyService,
+    ]);
   });
 
-  it('should emit metadata for multiple parameters', () => {
+  it('should store multiple explicit constructor dependencies', () => {
     @Injectable()
     class ServiceA {}
 
     @Injectable()
     class ServiceB {}
 
-    @Injectable()
+    @Injectable({ deps: [ServiceA, ServiceB] })
     class ServiceWithMultipleDeps {
       constructor(
-        public a: ServiceA,
-        public b: ServiceB,
+        public readonly a: ServiceA,
+        public readonly b: ServiceB,
       ) {}
     }
 
-    const metadata = Reflect.getMetadata('design:paramtypes', ServiceWithMultipleDeps);
-    expect(metadata).toBeDefined();
-    expect(metadata).toHaveLength(2);
-    expect(metadata[0]).toBe(ServiceA);
-    expect(metadata[1]).toBe(ServiceB);
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(metadataRegistry.getConstructorDependencies(ServiceWithMultipleDeps)).toEqual([
+      ServiceA,
+      ServiceB,
+    ]);
   });
 
-  it('should handle class with no constructor parameters', () => {
+  it('should read legacy reflect metadata when deps are omitted', () => {
     @Injectable()
-    class NoParamsService {
-      doSomething() {
-        return 'done';
-      }
+    class DependencyService {}
+
+    @Injectable()
+    class ReflectedService {
+      constructor(public readonly dep: DependencyService) {}
     }
 
-    const metadata = Reflect.getMetadata('design:paramtypes', NoParamsService);
-    // Metadata may be undefined or empty array for no-param constructors
-    expect(metadata === undefined || metadata.length === 0).toBe(true);
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(metadataRegistry.getConstructorDependencies(ReflectedService)).toEqual([
+      DependencyService,
+    ]);
+  });
+
+  it('should prefer explicit deps over legacy reflect metadata', () => {
+    @Injectable()
+    class ReflectDependency {}
+
+    @Injectable()
+    class ExplicitDependency {}
+
+    @Injectable({ deps: [ExplicitDependency] })
+    class ExplicitService {
+      constructor(public readonly dep: ReflectDependency) {}
+    }
+
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(metadataRegistry.getConstructorDependencies(ExplicitService)).toEqual([
+      ExplicitDependency,
+    ]);
+  });
+
+  it('should throw when dependencies are neither declared nor reflected', () => {
+    @Injectable()
+    class DependencyService {}
+
+    class MissingMetadataService {
+      constructor(public readonly dep: DependencyService) {}
+    }
+
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(() => metadataRegistry.getConstructorDependencies(MissingMetadataService)).toThrow(
+      /Declare deps with @Injectable/,
+    );
+  });
+
+  it('should throw when declared dependencies are incomplete', () => {
+    @Injectable()
+    class ServiceA {}
+
+    @Injectable()
+    class ServiceB {}
+
+    @Injectable({ deps: [ServiceA] })
+    class IncompleteDepsService {
+      constructor(
+        public readonly a: ServiceA,
+        public readonly b: ServiceB,
+      ) {}
+    }
+
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(() => metadataRegistry.getConstructorDependencies(IncompleteDepsService)).toThrow(
+      /Service dependencies incomplete/,
+    );
+  });
+
+  it('should inherit declared dependencies from a decorated base class', () => {
+    @Injectable()
+    class Logger {}
+
+    @Injectable({ deps: [Logger] })
+    class BaseService {
+      constructor(public readonly logger: Logger) {}
+    }
+
+    @Injectable()
+    class DerivedService extends BaseService {}
+
+    const metadataRegistry = getDefaultMetadataRegistry();
+    expect(metadataRegistry.getConstructorDependencies(DerivedService)).toEqual([
+      Logger,
+    ]);
   });
 
   it('should preserve static members', () => {
@@ -140,5 +218,19 @@ describe('Injectable decorator', () => {
     expect(instance.value).toBe(0);
     instance.value = 42;
     expect(instance.value).toBe(42);
+  });
+});
+
+describe('Provider decorator', () => {
+  it('should expose the declared token', () => {
+    const LOGGER = Symbol('LOGGER');
+
+    @Singleton()
+    @Provider(LOGGER)
+    class LoggerService {}
+
+    const metadata = getDefaultMetadataRegistry().getServiceMetadata(LoggerService);
+    expect(metadata?.provide).toBe(LOGGER);
+    expect(metadata?.lifetime).toBe('singleton');
   });
 });
