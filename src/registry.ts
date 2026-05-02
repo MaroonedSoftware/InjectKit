@@ -216,6 +216,7 @@ export class InjectKitRegistry implements Registry {
         constructor: undefined,
         factory: undefined,
         instance: override.useValue,
+        hasInstance: true,
         lifetime: 'singleton',
         dependencies: [],
         ctorDependencies: [],
@@ -247,9 +248,16 @@ export class InjectKitRegistry implements Registry {
    * Explicit registrations win over decorated registrations, which keeps the
    * composition root in control even when auto-registration is enabled.
    * @param registrations The final registration map being composed.
+   * @param targets When provided, only these classes are auto-registered;
+   *   otherwise every injectable class known to the metadata registry is used.
    */
-  private applyDecoratedRegistrations(registrations: Map<Token<unknown>, Registration<unknown>>): void {
-    for (const target of this.metadataRegistry.getDecoratedClasses()) {
+  private applyDecoratedRegistrations(
+    registrations: Map<Token<unknown>, Registration<unknown>>,
+    targets?: readonly (Constructor<unknown> | Abstract<unknown>)[],
+  ): void {
+    const candidates = targets ?? this.metadataRegistry.getDecoratedClasses();
+
+    for (const target of candidates) {
       const metadata = this.metadataRegistry.getServiceMetadata(target);
       if (!metadata?.injectable) {
         continue;
@@ -283,8 +291,15 @@ export class InjectKitRegistry implements Registry {
       registrations.set(token, registration.build());
     }
 
+    // Build order is deliberate: explicit registrations (already populated above)
+    // win over decorated, the Container self-registration only fills in if no
+    // explicit/decorated registration was provided, and overrides are applied
+    // last so they can replace either source.
     if (options.autoRegisterDecorated) {
-      this.applyDecoratedRegistrations(registrations);
+      const targets = Array.isArray(options.autoRegisterDecorated)
+        ? options.autoRegisterDecorated
+        : undefined;
+      this.applyDecoratedRegistrations(registrations, targets);
     }
 
     if (!registrations.has(Container)) {
@@ -311,10 +326,15 @@ export class InjectKitRegistry implements Registry {
 }
 
 /**
- * Creates a registry with the shared metadata registry.
+ * Creates a registry. By default the registry shares the process-global
+ * metadata registry, which is convenient but exposes auto-registration to any
+ * decorated class loaded anywhere in the process. Pass a fresh
+ * `DefaultMetadataRegistry` (or any `MetadataRegistry`) for hard isolation.
+ * @param metadataRegistry Optional metadata backend to use instead of the global one.
  * @returns A new registry instance.
  */
-export const createRegistry = (): InjectKitRegistry => new InjectKitRegistry();
+export const createRegistry = (metadataRegistry?: MetadataRegistry): InjectKitRegistry =>
+  new InjectKitRegistry(metadataRegistry);
 
 class InjectKitRegistration<T>
   implements RegistrationType<T>, RegistrationLifeTime, RegistrationArray<T>, RegistrationMap<unknown, T>
@@ -327,6 +347,9 @@ class InjectKitRegistration<T>
 
   /** Optional instance or value for instance-based registration. */
   private instance: T | undefined = undefined;
+
+  /** True once useInstance has been called, even when the value is undefined. */
+  private hasInstance = false;
 
   /** Optional collection of tokens for array-based registration. */
   private collection: Array<Token<T>> | undefined = undefined;
@@ -372,6 +395,7 @@ class InjectKitRegistration<T>
    */
   useInstance(instance: T): void {
     this.instance = instance;
+    this.hasInstance = true;
     this.lifetime = 'singleton';
     this.lifetimeConfigured = true;
   }
@@ -481,6 +505,7 @@ class InjectKitRegistration<T>
       constructor: this.ctor,
       factory: this.factory,
       instance: this.instance,
+      hasInstance: this.hasInstance,
       lifetime,
       dependencies,
       ctorDependencies,

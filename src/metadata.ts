@@ -1,10 +1,6 @@
 import 'reflect-metadata';
 import { Abstract, Constructor, Lifetime, Token } from './interfaces.js';
 
-type ReflectWithMetadata = typeof Reflect & {
-  getMetadata?: (metadataKey: string, target: object) => unknown;
-};
-
 /**
  * Service metadata captured from decorators.
  */
@@ -161,8 +157,7 @@ export class DefaultMetadataRegistry implements MetadataRegistry {
    * @throws {Error} If reflected metadata exists but does not describe all required parameters.
    */
   private getReflectConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents: string[]): Token<unknown>[] | undefined {
-    const getMetadata = (Reflect as ReflectWithMetadata).getMetadata;
-    const reflected = getMetadata?.('design:paramtypes', target);
+    const reflected = Reflect.getMetadata('design:paramtypes', target);
     if (!Array.isArray(reflected)) {
       return undefined;
     }

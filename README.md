@@ -396,6 +396,14 @@ const container = registry.build({
 });
 ```
 
+Pass an array of classes to `autoRegisterDecorated` to limit auto-registration to a known allowlist instead of every decorated class loaded in the process:
+
+```typescript
+const container = registry.build({
+  autoRegisterDecorated: [Logger, UserService],
+});
+```
+
 ### Decorators
 
 Decorators can be used in the legacy style:

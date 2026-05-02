@@ -11,6 +11,13 @@ export class InjectKitContainer implements ScopedContainer, Container {
   private readonly instances = new Map<Token<unknown>, unknown>();
 
   /**
+   * Per-scope override registrations. Held separately from the shared base
+   * registration map so calling override() on a child scope cannot mutate the
+   * parent (or sibling) scopes.
+   */
+  private readonly overrides = new Map<Token<unknown>, Registration<unknown>>();
+
+  /**
    * Creates a new container instance.
    * @param registrations Map of registered services and their normalized configurations.
    * @param parent Optional parent container for scoped container hierarchies.
@@ -19,6 +26,26 @@ export class InjectKitContainer implements ScopedContainer, Container {
     private readonly registrations: Map<Token<unknown>, Registration<unknown>>,
     private readonly parent?: InjectKitContainer,
   ) {}
+
+  /**
+   * Resolves the active registration for a token, preferring the nearest
+   * override in the parent chain over the shared base registrations.
+   * @template T The type represented by the token.
+   * @param token The token to resolve.
+   * @returns The matching registration, or undefined if none is registered.
+   */
+  private findRegistration<T>(token: Token<T>): Registration<T> | undefined {
+    let scope: InjectKitContainer | undefined = this;
+    while (scope) {
+      const override = scope.overrides.get(token);
+      if (override) {
+        return override as Registration<T>;
+      }
+      scope = scope.parent;
+    }
+
+    return this.registrations.get(token) as Registration<T> | undefined;
+  }
 
   /**
    * Creates a new instance from a normalized registration.
@@ -42,8 +69,8 @@ export class InjectKitContainer implements ScopedContainer, Container {
       instance = new registration.constructor(...dependencies);
     } else if (registration.factory) {
       instance = registration.factory(this);
-    } else if (registration.instance !== undefined) {
-      instance = registration.instance;
+    } else if (registration.hasInstance) {
+      instance = registration.instance as T;
     } else {
       throw new Error(`Invalid registration for ${formatToken(token)}`);
     }
@@ -82,18 +109,21 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * Retrieves a cached non-transient instance by traversing up the container hierarchy.
    * Scoped instances are inherited by child scopes, while singleton instances are found
    * at the root container after their first creation.
+   * Uses Map.has so cached values of `undefined` (a valid registered value) are honored.
    * @template T The type of instance to retrieve.
    * @param token The runtime token for the type to retrieve.
-   * @returns The cached instance, or undefined if no cached instance exists.
+   * @returns A `{ instance }` wrapper when cached, otherwise undefined.
    */
-  private getScopedInstance<T>(token: Token<T>): T | undefined {
-    const instance = this.instances.get(token) as T | undefined;
+  private getScopedInstance<T>(token: Token<T>): { instance: T } | undefined {
+    if (this.instances.has(token)) {
+      return { instance: this.instances.get(token) as T };
+    }
 
-    if (instance === undefined && this.parent) {
+    if (this.parent) {
       return this.parent.getScopedInstance(token);
     }
 
-    return instance;
+    return undefined;
   }
 
   /**
@@ -106,15 +136,15 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @throws {Error} If no registration is found for the specified token.
    */
   public get<T>(token: Token<T>): T {
-    const registration = this.registrations.get(token) as Registration<T>;
+    const registration = this.findRegistration(token);
     if (!registration) {
       throw new Error(`Registration for ${formatToken(token)} not found`);
     }
 
     if (registration.lifetime !== 'transient') {
-      const instance = this.getScopedInstance(token);
-      if (instance !== undefined) {
-        return instance;
+      const cached = this.getScopedInstance<T>(token);
+      if (cached) {
+        return cached.instance;
       }
     }
 
@@ -128,7 +158,7 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @returns True if the service has a registration, false otherwise.
    */
   public hasRegistration<T>(token: Token<T>): boolean {
-    return this.registrations.has(token);
+    return this.findRegistration(token) !== undefined;
   }
 
   /**
@@ -143,19 +173,21 @@ export class InjectKitContainer implements ScopedContainer, Container {
 
   /**
    * Overrides a registration with an existing instance in the current scope.
-   * The instance is cached locally so resolutions from this scope prefer the override.
+   * The override is stored in the per-scope override map so it never leaks to
+   * the parent or sibling scopes.
    * @template T The type of instance to override.
    * @param token The runtime token for the type to override.
    * @param instance The instance to use for the override.
    */
   public override<T>(token: Token<T>, instance: T): void {
-    this.registrations.set(token, {
+    this.overrides.set(token, {
       constructor: undefined,
       lifetime: 'scoped',
       dependencies: [],
       ctorDependencies: [],
       factory: undefined,
       instance,
+      hasInstance: true,
       collectionDependencies: undefined,
     });
     this.instances.set(token, instance);

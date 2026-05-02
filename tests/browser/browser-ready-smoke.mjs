@@ -59,7 +59,19 @@ function findBrowserExecutable() {
 async function main() {
   const browserExecutable = findBrowserExecutable();
   if (!browserExecutable) {
-    throw new Error('Could not find a Chromium executable. Set CHROME_BIN or PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH.');
+    // CI must set INJECTKIT_REQUIRE_BROWSER_SMOKE=1 (or CI=true) to fail loudly.
+    // Local runs without Playwright installed skip with a visible warning so a
+    // missing browser dependency does not block normal contributor workflows.
+    const required = process.env.INJECTKIT_REQUIRE_BROWSER_SMOKE === '1' || process.env.CI === 'true';
+    const message =
+      'Could not find a Chromium executable. Set CHROME_BIN or PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, or run `npx playwright install chromium`.';
+
+    if (required) {
+      throw new Error(message);
+    }
+
+    process.stderr.write(`[browser-ready-smoke] Skipping: ${message}\n`);
+    return;
   }
 
   const isHeadlessShell = browserExecutable.includes('chrome-headless-shell');
