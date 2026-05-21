@@ -163,12 +163,12 @@ const service = container.get(MyService);
 const resolvedContainer = container.get(Container);
 ```
 
-### Token
+### Identifier
 
-A **Token** is a class constructor, abstract class, string, or symbol used to register and resolve services. This enables programming to interfaces:
+An **Identifier** is whatever you pass to `register()`, `get()`, and friends to refer to a service. It can be a class constructor, an abstract class, or a **Token** (a string or symbol). Using abstract classes and tokens lets you program to interfaces:
 
 ```typescript
-// Abstract class as token
+// Abstract class as identifier
 abstract class Repository {
   abstract find(id: string): Promise<Entity>;
 }
@@ -186,6 +186,14 @@ registry.register(Repository).useClass(PostgresRepository).asSingleton();
 
 // Resolve using the abstract class
 const repo = container.get(Repository); // Returns PostgresRepository
+```
+
+String and symbol tokens are useful for nominal contracts where there is no class to point at:
+
+```typescript
+const LOGGER = Symbol('LOGGER');
+registry.register(LOGGER).useClass(ConsoleLogger).asSingleton();
+const logger = container.get<Logger>(LOGGER);
 ```
 
 ### Lifetimes
@@ -255,12 +263,14 @@ registry
 
 #### `useInstance(instance)`
 
-Register an existing instance directly. Always behaves as a singleton.
+Register an existing object instance directly. Always behaves as a singleton.
 
 ```typescript
 const config = new ConfigService({ env: 'production' });
 registry.register(ConfigService).useInstance(config);
 ```
+
+For primitive or falsy values (numbers, strings, booleans, `undefined`), use `registry.registerValue(token, value)` instead.
 
 #### `useArray(constructor)`
 
@@ -359,23 +369,14 @@ Starts a registration chain for a service.
 
 #### `registerValue<T>(token, value): Registry`
 
-Registers an existing value for a class, string, or symbol token.
+Registers a value (primitive, object, `undefined`, etc.) under a string or symbol token. Always behaves as a singleton.
 
 ```typescript
 registry.registerValue('env', { mode: 'production' });
+registry.registerValue('retryCount', 0);
 ```
 
-#### `registerFactory<T>(token, factory, lifetime?): Registry`
-
-Registers a factory with an optional lifetime.
-
-```typescript
-registry.registerFactory(
-  ApiClient,
-  container => new ApiClient(container.get(ConfigService)),
-  'singleton',
-);
-```
+For class-keyed factory or constructor registrations, use the fluent `register(...).useFactory(...)` / `useClass(...)` chain.
 
 #### `remove<T>(token): void`
 

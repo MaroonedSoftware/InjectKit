@@ -1,4 +1,4 @@
-import { Lifetime, Token } from './interfaces.js';
+import { Identifier, Lifetime } from './interfaces.js';
 import { getDefaultMetadataRegistry } from './metadata.js';
 
 const metadataRegistry = getDefaultMetadataRegistry();
@@ -12,13 +12,13 @@ export interface ServiceDecoratorOptions {
    * When omitted, InjectKit falls back to legacy reflect-metadata constructor
    * metadata when it is available.
    */
-  deps?: readonly Token<unknown>[];
+  deps?: readonly Identifier<unknown>[];
 }
 
 type ServiceMetadataOptions = ServiceDecoratorOptions & {
   injectable?: boolean;
   lifetime?: Lifetime;
-  provide?: Token<unknown>;
+  provide?: Identifier<unknown>;
 };
 
 const applyServiceMetadata =
@@ -48,9 +48,7 @@ const applyServiceMetadata =
  * }
  * ```
  */
-export const Injectable = (
-  options: ServiceDecoratorOptions = {},
-): ClassDecorator => applyServiceMetadata({ injectable: true, ...options });
+export const Injectable = (options: ServiceDecoratorOptions = {}): ClassDecorator => applyServiceMetadata({ injectable: true, ...options });
 
 /**
  * Marks a class as injectable with singleton lifetime by default.
@@ -58,9 +56,7 @@ export const Injectable = (
  * @param options Optional explicit dependency metadata.
  * @returns A class decorator that marks the class as a singleton.
  */
-export const Singleton = (
-  options: ServiceDecoratorOptions = {},
-): ClassDecorator =>
+export const Singleton = (options: ServiceDecoratorOptions = {}): ClassDecorator =>
   applyServiceMetadata({ injectable: true, lifetime: 'singleton', ...options });
 
 /**
@@ -69,9 +65,7 @@ export const Singleton = (
  * @param options Optional explicit dependency metadata.
  * @returns A class decorator that marks the class as scoped.
  */
-export const Scoped = (
-  options: ServiceDecoratorOptions = {},
-): ClassDecorator =>
+export const Scoped = (options: ServiceDecoratorOptions = {}): ClassDecorator =>
   applyServiceMetadata({ injectable: true, lifetime: 'scoped', ...options });
 
 /**
@@ -80,21 +74,16 @@ export const Scoped = (
  * @param options Optional explicit dependency metadata.
  * @returns A class decorator that marks the class as transient.
  */
-export const Transient = (
-  options: ServiceDecoratorOptions = {},
-): ClassDecorator =>
+export const Transient = (options: ServiceDecoratorOptions = {}): ClassDecorator =>
   applyServiceMetadata({ injectable: true, lifetime: 'transient', ...options });
 
 /**
- * Declares the token satisfied by the decorated implementation.
+ * Declares the identifier satisfied by the decorated implementation.
  * Used by auto-registration to register the implementation under a class,
- * abstract class, string or symbol token that differs from the class itself.
- * @param token The runtime token provided by the decorated class.
+ * abstract class, string or symbol that differs from the class itself.
+ * @param id The runtime identifier provided by the decorated class.
  * @param options Optional explicit dependency metadata.
- * @returns A class decorator that associates the class with the token.
+ * @returns A class decorator that associates the class with the identifier.
  */
-export const Provider = (
-  token: Token<unknown>,
-  options: ServiceDecoratorOptions = {},
-): ClassDecorator =>
-  applyServiceMetadata({ injectable: true, provide: token, ...options });
+export const Provider = (id: Identifier<unknown>, options: ServiceDecoratorOptions = {}): ClassDecorator =>
+  applyServiceMetadata({ injectable: true, provide: id, ...options });

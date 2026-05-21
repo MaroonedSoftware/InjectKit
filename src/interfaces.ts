@@ -17,22 +17,37 @@ export interface Abstract<T> extends Function {
 
 /**
  * Runtime token used to register and resolve dependencies.
- * Supports constructors, abstract classes, strings and symbols so consumers can
- * model both concrete services and nominal contracts.
- * @template T The type represented by the token.
- * @example
- * ```typescript
- * const LOGGER = Symbol('LOGGER');
- * registry.register(LOGGER).useClass(ConsoleLogger).asSingleton();
- * ```
+ * Supports strings and symbols so consumers can model both concrete services and nominal contracts.
  */
-export type Token<T> = Constructor<T> | Abstract<T> | string | symbol;
+export type Token = string | symbol;
 
 /**
- * Backwards-compatible alias for previous API consumers.
- * @template T The type represented by the token.
+ * A type identifier used to resolve dependencies in the container.
+ * Can be either a concrete constructor, an abstract class/interface, or a token.
+ * @template T The type being identified.
  */
-export type Identifier<T> = Token<T>;
+export type Identifier<T> = Constructor<T> | Abstract<T> | Token;
+
+/**
+ * Represents an instance of type T that is also an object.
+ * @template T The type of the instance.
+ */
+export type Instance<T> = T & object;
+
+/**
+ * Sentinel used by internal registrations to mark the absence of a configured
+ * instance. A unique symbol is required because `undefined` is a valid
+ * registered value and cannot itself signal "not set".
+ */
+export const InjectKitNotSet = Symbol('InjectKitNotSet');
+
+/**
+ * Value held in a registration's instance slot. Either a real instance, an
+ * arbitrary value (for primitive/value registrations), or the `InjectKitNotSet`
+ * sentinel when the registration was not configured with an instance.
+ * @template T The type being registered.
+ */
+export type InstanceOrValue<T> = Instance<T> | T | typeof InjectKitNotSet;
 
 /**
  * Extracts the element type from an array type.
@@ -53,26 +68,18 @@ export type ArrayType<T> = T extends Array<infer I> ? I : never;
 export type MapType<T> = T extends Map<infer I, infer O> ? [I, O] : never;
 
 /**
- * Defines the lifetime management strategy for a registered service.
- * - 'singleton': One instance shared across the entire container tree
- * - 'transient': A new instance created every time it is requested
- * - 'scoped': One instance per scoped container chain
- */
-export type Lifetime = 'singleton' | 'transient' | 'scoped';
-
-/**
  * Dependency injection container that manages the creation and lifetime of registered services.
  */
 export abstract class Container {
   /**
-   * Retrieves an instance of the specified token from the container.
+   * Retrieves an instance of the specified type from the container.
    * For singleton and scoped lifetimes, returns cached instances when available.
    * For transient lifetimes, creates a new instance each time.
    * @template T The type of instance to retrieve.
-   * @param token The runtime token for the type to resolve.
+   * @param id The identifier (constructor or abstract class) for the type to resolve.
    * @returns An instance of type T.
    */
-  abstract get<T>(token: Token<T>): T;
+  abstract get<T>(id: Identifier<T>): T;
 
   /**
    * Creates a new scoped container that inherits all registrations from this container.
@@ -85,10 +92,10 @@ export abstract class Container {
   /**
    * Checks if a service has a registration with the container.
    * @template T The type of the service to check.
-   * @param token The runtime token for the type to check.
+   * @param id The identifier (constructor or abstract class) for the type to check.
    * @returns True if the service has a registration, false otherwise.
    */
-  abstract hasRegistration<T>(token: Token<T>): boolean;
+  abstract hasRegistration<T>(id: Identifier<T>): boolean;
 }
 
 /**
@@ -96,12 +103,12 @@ export abstract class Container {
  */
 export type ScopedContainer = Container & {
   /**
-   * Overrides the registration for the specified token with a new instance.
+   * Overrides the registration for the specified identifier with a new instance.
    * @template T The type of the instance to override.
-   * @param token The runtime token of the registration to override.
+   * @param id The identifier of the registration to override.
    * @param instance The instance to use for the registration.
    */
-  override<T>(token: Token<T>, instance: T): void;
+  override<T>(id: Identifier<T>, instance: Instance<T>): void;
 };
 
 /**
@@ -111,6 +118,14 @@ export type ScopedContainer = Container & {
  * @returns An instance of type T.
  */
 export type Factory<T> = (container: Container) => T;
+
+/**
+ * Defines the lifetime management strategy for a registered service.
+ * - 'singleton': One instance shared across the entire container tree
+ * - 'transient': A new instance created every time it is requested
+ * - 'scoped': One instance per scoped container chain
+ */
+export type Lifetime = 'singleton' | 'transient' | 'scoped';
 
 /**
  * Fluent interface for configuring registration lifetime.
@@ -140,12 +155,12 @@ export interface RegistrationLifeTime {
  */
 export interface RegistrationArray<T> {
   /**
-   * Adds an implementation token to the array collection.
+   * Adds an implementation identifier to the array collection.
    * The resolved instance will be pushed to the array when the service is created.
-   * @param token The runtime token of the implementation to add.
+   * @param id The identifier of the implementation to add.
    * @returns Registration array options for method chaining.
    */
-  push(token: Token<T>): RegistrationArray<T>;
+  push(id: Identifier<T>): RegistrationArray<T>;
 }
 
 /**
@@ -156,13 +171,13 @@ export interface RegistrationArray<T> {
  */
 export interface RegistrationMap<K, V> {
   /**
-   * Adds an implementation token to the map collection.
-   * The resolved instance will be stored in the map with the provided key.
+   * Adds an implementation identifier to the map collection.
+   * The resolved instance will be stored in the map with the provided key when the service is created.
    * @param key The key of the implementation to add.
-   * @param token The runtime token of the implementation to add.
+   * @param id The identifier of the implementation to add.
    * @returns Registration map options for method chaining.
    */
-  set(key: K, token: Token<V>): RegistrationMap<K, V>;
+  set(key: K, id: Identifier<V>): RegistrationMap<K, V>;
 }
 
 /**
@@ -189,11 +204,10 @@ export interface RegistrationType<T> {
   useFactory(factory: Factory<T>): RegistrationLifeTime;
 
   /**
-   * Registers a service using an existing instance or value.
-   * Instance registrations always behave as singletons.
-   * @param instance The instance or value to register.
+   * Registers a service using an existing instance.
+   * @param instance The instance to register (will be used as a singleton).
    */
-  useInstance(instance: T): void;
+  useInstance(instance: Instance<T>): void;
 
   /**
    * Registers a service as an array type, allowing multiple implementations to be collected.
@@ -223,7 +237,7 @@ export type Override<T = unknown> =
    * Replaces a token with a class registration for the build call.
    */
   | {
-      token: Token<T>;
+      token: Identifier<T>;
       useClass: Constructor<T>;
       lifetime?: Lifetime;
     }
@@ -231,7 +245,7 @@ export type Override<T = unknown> =
    * Replaces a token with a factory registration for the build call.
    */
   | {
-      token: Token<T>;
+      token: Identifier<T>;
       useFactory: Factory<T>;
       lifetime?: Lifetime;
     }
@@ -239,8 +253,8 @@ export type Override<T = unknown> =
    * Replaces a token with a singleton value registration for the build call.
    */
   | {
-      token: Token<T>;
-      useValue: T;
+      token: Identifier<T>;
+      useValue: Instance<T>;
     };
 
 /**
@@ -268,18 +282,18 @@ export interface BuildOptions {
 }
 
 /**
- * Service registry that manages registrations before building a container.
- * Allows registration, removal and checking of services before materializing
- * a validated runtime container.
+ * Service registry that manages service registrations before building a container.
+ * Allows registration, removal, and checking of services, and provides a method to build a container
+ * with all registered services.
  */
 export interface Registry {
   /**
    * Registers a service with the registry.
    * @template T The type of the service to register.
-   * @param token The runtime token for the type to register.
+   * @param id The identifier (constructor or abstract class) for the type to register.
    * @returns The registration type for configuring how the service should be created.
    */
-  register<T>(token: Token<T>): RegistrationType<T>;
+  register<T>(id: Identifier<T>): RegistrationType<T>;
 
   /**
    * Registers an existing value for the specified token.
@@ -288,32 +302,22 @@ export interface Registry {
    * @param value The value to register.
    * @returns This registry for chaining.
    */
-  registerValue<T>(token: Token<T>, value: T): this;
-
-  /**
-   * Registers a factory for the specified token.
-   * @template T The type created by the factory.
-   * @param token The runtime token for the factory result.
-   * @param factory The factory function that creates the value.
-   * @param lifetime Optional lifetime, defaulting to transient.
-   * @returns This registry for chaining.
-   */
-  registerFactory<T>(token: Token<T>, factory: Factory<T>, lifetime?: Lifetime): this;
+  registerValue<T>(token: Token, value: T): this;
 
   /**
    * Removes a service registration from the registry.
    * @template T The type of the service to remove.
-   * @param token The runtime token for the type to remove.
+   * @param id The identifier (constructor or abstract class) for the type to remove.
    */
-  remove<T>(token: Token<T>): void;
+  remove<T>(id: Identifier<T>): void;
 
   /**
    * Checks if a service is registered with the registry.
    * @template T The type of the service to check.
-   * @param token The runtime token for the type to check.
+   * @param id The identifier (constructor or abstract class) for the type to check.
    * @returns True if the service is registered, false otherwise.
    */
-  isRegistered<T>(token: Token<T>): boolean;
+  isRegistered<T>(id: Identifier<T>): boolean;
 
   /**
    * Builds a validated container from explicit registrations, optional decorated
@@ -323,3 +327,20 @@ export interface Registry {
    */
   build(options?: BuildOptions): Container;
 }
+
+/**
+ * Formats a runtime identifier into a readable string for diagnostics.
+ * String and symbol identifiers do not have a class name, so error messages need a
+ * shared formatter instead of directly reading `.name`.
+ * @param id The identifier to format.
+ * @returns A stable readable representation of the identifier.
+ */
+export const formatIdentifier = (id: Identifier<unknown>): string => {
+  if (typeof id === 'string') {
+    return id;
+  } else if (typeof id === 'symbol') {
+    return id.description ? `Symbol(${id.description})` : id.toString();
+  }
+
+  return id.name || '<anonymous>';
+};

@@ -46,7 +46,7 @@
   "files": [
     "dist/**"
   ],
-  "packageManager": "pnpm@10.26.1",
+  "packageManager": "pnpm@11.1.1",
   "engines": {
     "node": ">=22"
   },

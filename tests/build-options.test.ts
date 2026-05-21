@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createRegistry,
-  DefaultMetadataRegistry,
-  Injectable,
-  Provider,
-  Singleton,
-} from '../src/index.js';
+import { createRegistry, DefaultMetadataRegistry, Injectable, Provider, Singleton } from '../src/index.js';
 
 const LOGGER = Symbol('LOGGER');
 const CONFIG = 'CONFIG';
@@ -64,18 +58,13 @@ describe('build options', () => {
   });
 
   it('should support registerValue for nominal tokens', () => {
-    const container = createRegistry()
-      .registerValue(CONFIG, { env: 'test' })
-      .build();
+    const container = createRegistry().registerValue(CONFIG, { env: 'test' }).build();
 
     expect(container.get(CONFIG)).toEqual({ env: 'test' });
   });
 
   it('should resolve falsy registered values', () => {
-    const container = createRegistry()
-      .registerValue('enabled', false)
-      .registerValue('retryCount', 0)
-      .build();
+    const container = createRegistry().registerValue('enabled', false).registerValue('retryCount', 0).build();
 
     expect(container.get('enabled')).toBe(false);
     expect(container.get('retryCount')).toBe(0);

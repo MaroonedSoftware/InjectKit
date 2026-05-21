@@ -1,6 +1,5 @@
-import { Container, ScopedContainer, Token } from './interfaces.js';
+import { Container, ScopedContainer, Identifier, Instance, formatIdentifier, InjectKitNotSet } from './interfaces.js';
 import { Registration } from './internal.js';
-import { formatToken } from './token.js';
 
 /**
  * Implementation of the dependency injection container.
@@ -8,14 +7,14 @@ import { formatToken } from './token.js';
  */
 export class InjectKitContainer implements ScopedContainer, Container {
   /** Map storing cached instances for singleton and scoped lifetimes. */
-  private readonly instances = new Map<Token<unknown>, unknown>();
+  private readonly instances = new Map<Identifier<unknown>, unknown>();
 
   /**
    * Per-scope override registrations. Held separately from the shared base
    * registration map so calling override() on a child scope cannot mutate the
    * parent (or sibling) scopes.
    */
-  private readonly overrides = new Map<Token<unknown>, Registration<unknown>>();
+  private readonly overrides = new Map<Identifier<unknown>, Registration<unknown>>();
 
   /**
    * Creates a new container instance.
@@ -23,28 +22,28 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @param parent Optional parent container for scoped container hierarchies.
    */
   constructor(
-    private readonly registrations: Map<Token<unknown>, Registration<unknown>>,
+    private readonly registrations: Map<Identifier<unknown>, Registration<unknown>>,
     private readonly parent?: InjectKitContainer,
   ) {}
 
   /**
-   * Resolves the active registration for a token, preferring the nearest
+   * Resolves the active registration for an identifier, preferring the nearest
    * override in the parent chain over the shared base registrations.
-   * @template T The type represented by the token.
-   * @param token The token to resolve.
+   * @template T The type represented by the identifier.
+   * @param id The identifier to resolve.
    * @returns The matching registration, or undefined if none is registered.
    */
-  private findRegistration<T>(token: Token<T>): Registration<T> | undefined {
+  private findRegistration<T>(id: Identifier<T>): Registration<T> | undefined {
     let scope: InjectKitContainer | undefined = this;
     while (scope) {
-      const override = scope.overrides.get(token);
+      const override = scope.overrides.get(id);
       if (override) {
         return override as Registration<T>;
       }
       scope = scope.parent;
     }
 
-    return this.registrations.get(token) as Registration<T> | undefined;
+    return this.registrations.get(id) as Registration<T> | undefined;
   }
 
   /**
@@ -52,12 +51,12 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * Handles constructor-based, factory-based and instance-based registrations,
    * then caches singleton and scoped instances according to their lifetime.
    * @template T The type of instance to create.
-   * @param token The runtime token for the registration being resolved.
+   * @param id The identifier for the registration being resolved.
    * @param registration The normalized registration configuration.
    * @returns A new or cached instance of type T.
    * @throws {Error} If the registration has no valid creation strategy.
    */
-  private createInstance<T>(token: Token<T>, registration: Registration<T>): T {
+  private createInstance<T>(id: Identifier<T>, registration: Registration<T>): T {
     let instance: T;
 
     if (registration.constructor) {
@@ -69,10 +68,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
       instance = new registration.constructor(...dependencies);
     } else if (registration.factory) {
       instance = registration.factory(this);
-    } else if (registration.hasInstance) {
-      instance = registration.instance as T;
+    } else if (registration.instance !== InjectKitNotSet) {
+      instance = registration.instance;
     } else {
-      throw new Error(`Invalid registration for ${formatToken(token)}`);
+      throw new Error(`Invalid registration for ${formatIdentifier(id)}`);
     }
 
     // Array and map registrations are constructed first, then populated with
@@ -97,9 +96,9 @@ export class InjectKitContainer implements ScopedContainer, Container {
         container = container.parent;
       }
 
-      container.instances.set(token, instance);
+      container.instances.set(id, instance);
     } else if (registration.lifetime === 'scoped') {
-      this.instances.set(token, instance);
+      this.instances.set(id, instance);
     }
 
     return instance;
@@ -111,16 +110,16 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * at the root container after their first creation.
    * Uses Map.has so cached values of `undefined` (a valid registered value) are honored.
    * @template T The type of instance to retrieve.
-   * @param token The runtime token for the type to retrieve.
+   * @param id The identifier for the type to retrieve.
    * @returns A `{ instance }` wrapper when cached, otherwise undefined.
    */
-  private getScopedInstance<T>(token: Token<T>): { instance: T } | undefined {
-    if (this.instances.has(token)) {
-      return { instance: this.instances.get(token) as T };
+  private getScopedInstance<T>(id: Identifier<T>): { instance: T } | undefined {
+    if (this.instances.has(id)) {
+      return { instance: this.instances.get(id) as T };
     }
 
     if (this.parent) {
-      return this.parent.getScopedInstance(token);
+      return this.parent.getScopedInstance(id);
     }
 
     return undefined;
@@ -131,34 +130,34 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * For singleton and scoped lifetimes, returns cached instances when available.
    * For transient lifetimes, creates a new instance each time.
    * @template T The type of instance to retrieve.
-   * @param token The runtime token for the type to resolve.
+   * @param id The identifier for the type to resolve.
    * @returns An instance of type T.
-   * @throws {Error} If no registration is found for the specified token.
+   * @throws {Error} If no registration is found for the specified identifier.
    */
-  public get<T>(token: Token<T>): T {
-    const registration = this.findRegistration(token);
+  public get<T>(id: Identifier<T>): T {
+    const registration = this.findRegistration(id);
     if (!registration) {
-      throw new Error(`Registration for ${formatToken(token)} not found`);
+      throw new Error(`Registration for ${formatIdentifier(id)} not found`);
     }
 
     if (registration.lifetime !== 'transient') {
-      const cached = this.getScopedInstance<T>(token);
+      const cached = this.getScopedInstance<T>(id);
       if (cached) {
         return cached.instance;
       }
     }
 
-    return this.createInstance(token, registration);
+    return this.createInstance(id, registration);
   }
 
   /**
    * Checks if a service has a registration with the container.
    * @template T The type of the service to check.
-   * @param token The runtime token for the type to check.
+   * @param id The identifier for the type to check.
    * @returns True if the service has a registration, false otherwise.
    */
-  public hasRegistration<T>(token: Token<T>): boolean {
-    return this.findRegistration(token) !== undefined;
+  public hasRegistration<T>(id: Identifier<T>): boolean {
+    return this.findRegistration(id) !== undefined;
   }
 
   /**
@@ -176,20 +175,19 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * The override is stored in the per-scope override map so it never leaks to
    * the parent or sibling scopes.
    * @template T The type of instance to override.
-   * @param token The runtime token for the type to override.
+   * @param id The identifier for the type to override.
    * @param instance The instance to use for the override.
    */
-  public override<T>(token: Token<T>, instance: T): void {
-    this.overrides.set(token, {
+  public override<T>(id: Identifier<T>, instance: Instance<T>): void {
+    this.overrides.set(id, {
       constructor: undefined,
       lifetime: 'scoped',
       dependencies: [],
       ctorDependencies: [],
       factory: undefined,
       instance,
-      hasInstance: true,
       collectionDependencies: undefined,
     });
-    this.instances.set(token, instance);
+    this.instances.set(id, instance);
   }
 }

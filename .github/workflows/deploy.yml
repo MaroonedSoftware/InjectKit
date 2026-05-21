@@ -26,6 +26,11 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v5
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: latest
+
       - name: Create and publish versions
         id: changesets
         uses: changesets/action@v1
@@ -35,4 +40,3 @@ jobs:
           publish: pnpm publish -r --access public --no-git-checks
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

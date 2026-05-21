@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Abstract, Constructor, Lifetime, Token } from './interfaces.js';
+import { Abstract, Constructor, Lifetime, Identifier } from './interfaces.js';
 
 /**
  * Service metadata captured from decorators.
@@ -12,10 +12,10 @@ export interface ServiceMetadata {
   lifetime?: Lifetime;
 
   /** Optional token that this class provides during auto-registration. */
-  provide?: Token<unknown>;
+  provide?: Identifier<unknown>;
 
   /** Explicit constructor dependency tokens, in constructor parameter order. */
-  deps?: readonly Token<unknown>[];
+  deps?: readonly Identifier<unknown>[];
 }
 
 /**
@@ -50,7 +50,7 @@ export interface MetadataRegistry {
    * @param parents Parent class path used for inherited dependency diagnostics.
    * @returns Constructor dependency tokens in parameter order.
    */
-  getConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents?: string[]): Token<unknown>[];
+  getConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents?: string[]): Identifier<unknown>[];
 }
 
 /**
@@ -113,7 +113,7 @@ export class DefaultMetadataRegistry implements MetadataRegistry {
    * @returns Constructor dependency tokens in parameter order.
    * @throws {Error} If dependencies are missing for a parameterized constructor.
    */
-  getConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents: string[] = []): Token<unknown>[] {
+  getConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents: string[] = []): Identifier<unknown>[] {
     const metadata = this.getServiceMetadata(target);
     if (metadata?.deps !== undefined) {
       if (metadata.deps.length < target.length) {
@@ -156,7 +156,7 @@ export class DefaultMetadataRegistry implements MetadataRegistry {
    * @returns Reflected constructor dependencies, or undefined when no legacy metadata exists.
    * @throws {Error} If reflected metadata exists but does not describe all required parameters.
    */
-  private getReflectConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents: string[]): Token<unknown>[] | undefined {
+  private getReflectConstructorDependencies(target: Constructor<unknown> | Abstract<unknown>, parents: string[]): Identifier<unknown>[] | undefined {
     const reflected = Reflect.getMetadata('design:paramtypes', target);
     if (!Array.isArray(reflected)) {
       return undefined;
@@ -169,7 +169,7 @@ export class DefaultMetadataRegistry implements MetadataRegistry {
       );
     }
 
-    return reflected as Token<unknown>[];
+    return reflected as Identifier<unknown>[];
   }
 
   /**

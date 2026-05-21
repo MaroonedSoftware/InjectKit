@@ -1,4 +1,4 @@
-import { Constructor, Factory, Lifetime, Token } from './interfaces.js';
+import { Constructor, Factory, Lifetime, InstanceOrValue, Identifier } from './interfaces.js';
 
 /**
  * Internal representation of a service registration in the container.
@@ -13,25 +13,18 @@ export type Registration<T> = {
   /** Factory used for factory-based registrations. */
   factory?: Factory<T>;
 
-  /**
-   * Existing instance or value used for instance-based registrations.
-   * May legitimately be `undefined` when `hasInstance` is true; use that flag
-   * rather than `instance !== undefined` to detect instance registrations.
-   */
-  instance?: T;
-
-  /** True when the registration was configured with an explicit instance value. */
-  hasInstance?: boolean;
+  /** Existing instance used for instance-based registrations. */
+  instance: InstanceOrValue<T>;
 
   /** Lifetime strategy used when resolving the registration. */
   lifetime: Lifetime;
 
   /** All tokens that must exist in the final graph before build succeeds. */
-  dependencies: Token<unknown>[];
+  dependencies: Identifier<unknown>[];
 
   /** Constructor dependency tokens, resolved in parameter order. */
-  ctorDependencies: Token<unknown>[];
+  ctorDependencies: Identifier<unknown>[];
 
   /** Collection item tokens for array and map registrations. */
-  collectionDependencies?: Array<Token<unknown>> | Map<unknown, Token<unknown>>;
+  collectionDependencies?: Array<Identifier<unknown>> | Map<unknown, Identifier<unknown>>;
 };
