@@ -1,12 +1,10 @@
 import {
   Abstract,
-  ArrayType,
   BuildOptions,
   Container,
   Constructor,
   Factory,
   Lifetime,
-  MapType,
   Override,
   RegistrationArray,
   RegistrationLifeTime,
@@ -369,27 +367,27 @@ class InjectKitRegistration<T> implements RegistrationType<T>, RegistrationLifeT
   /**
    * Registers a service as an array type, allowing multiple implementations to be collected.
    * The array will be populated with instances resolved from tokens added via push().
-   * @template U The array element type extracted from T.
+   * The element type is inferred from `T` when `T` is an array.
    * @param constructor The constructor function for the array type.
    * @returns Registration array options for chaining push() calls.
    */
-  useArray<U extends ArrayType<T>>(constructor: Constructor<T>): RegistrationArray<U> {
+  useArray(constructor: Constructor<T>): T extends Array<infer V> ? RegistrationArray<V> : never {
     this.collection = [];
     this.ctor = constructor;
-    return this as unknown as RegistrationArray<U>;
+    return this as unknown as T extends Array<infer V> ? RegistrationArray<V> : never;
   }
 
   /**
    * Registers a service as a map type, allowing multiple implementations to be collected.
    * The map will be populated with instances resolved from tokens added via set().
-   * @template U The map key/value tuple extracted from T.
+   * The key and value types are inferred from `T` when `T` is a map.
    * @param constructor The constructor function for the map type.
    * @returns Registration map options for chaining set() calls.
    */
-  useMap<U extends MapType<T>>(constructor: Constructor<T>): RegistrationMap<U[0], U[1]> {
+  useMap(constructor: Constructor<T>): T extends Map<infer K, infer V> ? RegistrationMap<K, V> : never {
     this.map = new Map();
     this.ctor = constructor;
-    return this as unknown as RegistrationMap<U[0], U[1]>;
+    return this as unknown as T extends Map<infer K, infer V> ? RegistrationMap<K, V> : never;
   }
 
   /**

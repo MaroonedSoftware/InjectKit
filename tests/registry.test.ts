@@ -274,6 +274,25 @@ describe('InjectKitRegistry', () => {
 
       expect(notifiers[0]).toBe(emailNotifier);
     });
+
+    it('should expose a typed push() when the registration is stored in a variable', () => {
+      registry.register(EmailNotifier).useClass(EmailNotifier).asSingleton();
+      registry.register(SmsNotifier).useClass(SmsNotifier).asSingleton();
+
+      // Holding the registration in a variable exercises the conditional return
+      // type — push() must still accept Identifier<AbstractNotifier> here.
+      const notificationRegistration = registry.register(NotificationArray).useArray(NotificationArray);
+      for (const notifier of [EmailNotifier, SmsNotifier]) {
+        notificationRegistration.push(notifier);
+      }
+
+      const container = registry.build();
+      const notifiers = container.get(NotificationArray);
+
+      expect(notifiers.length).toBe(2);
+      expect(notifiers[0]?.notify('test')).toBe('email: test');
+      expect(notifiers[1]?.notify('test')).toBe('sms: test');
+    });
   });
 
   describe('useMap', () => {
@@ -299,6 +318,36 @@ describe('InjectKitRegistry', () => {
       registry.register(ConcreteService).useClass(ConcreteService).asSingleton();
       registry.register(AnotherService).useClass(AnotherService).asSingleton();
       registry.register(ServiceMap).useMap(ServiceMap).set('primary', ConcreteService).set('secondary', AnotherService);
+
+      const container = registry.build();
+      const serviceMap = container.get(ServiceMap);
+
+      expect(serviceMap.size).toBe(2);
+      expect(serviceMap.get('primary')?.getValue()).toBe('concrete');
+      expect(serviceMap.get('secondary')?.getValue()).toBe('another');
+    });
+
+    it('should expose a typed set() when the registration is stored in a variable', () => {
+      @Injectable()
+      class AnotherService extends AbstractService {
+        getValue() {
+          return 'another';
+        }
+      }
+
+      registry.register(ConcreteService).useClass(ConcreteService).asSingleton();
+      registry.register(AnotherService).useClass(AnotherService).asSingleton();
+
+      // Holding the registration in a variable exercises the conditional return
+      // type — set() must accept a string key and Identifier<AbstractService>.
+      const serviceMapRegistration = registry.register(ServiceMap).useMap(ServiceMap);
+      const entries: Array<[string, typeof ConcreteService | typeof AnotherService]> = [
+        ['primary', ConcreteService],
+        ['secondary', AnotherService],
+      ];
+      for (const [key, id] of entries) {
+        serviceMapRegistration.set(key, id);
+      }
 
       const container = registry.build();
       const serviceMap = container.get(ServiceMap);
