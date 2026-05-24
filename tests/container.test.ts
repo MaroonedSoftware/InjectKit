@@ -119,6 +119,13 @@ describe('InjectKitContainer', () => {
       expect(resolvedContainer).toBe(container);
     });
 
+    it('should resolve Container to the scope performing the lookup', () => {
+      const container = registry.build();
+      const scoped = container.createScopedContainer();
+      expect(scoped.get(Container)).toBe(scoped);
+      expect(container.get(Container)).toBe(container);
+    });
+
     it('should resolve string tokens', () => {
       registry.register('database').useClass(DatabaseService).asSingleton();
       const container = registry.build();

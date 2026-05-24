@@ -261,9 +261,12 @@ export class InjectKitRegistry implements Registry {
       this.applyDecoratedRegistrations(registrations, targets);
     }
 
+    // Container is registered as transient so the factory runs on every
+    // resolution and returns the container that drove the lookup — letting
+    // a scoped container resolve to itself instead of the cached root.
     if (!registrations.has(Container)) {
       registrations.set(Container, {
-        lifetime: 'singleton',
+        lifetime: 'transient',
         dependencies: [],
         ctorDependencies: [],
         collectionDependencies: undefined,
