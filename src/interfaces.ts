@@ -69,8 +69,13 @@ export type MapType<T> = T extends Map<infer I, infer O> ? [I, O] : never;
 
 /**
  * Dependency injection container that manages the creation and lifetime of registered services.
+ *
+ * Implements {@link AsyncDisposable} so a container (or scope) can be torn down with
+ * `await using` or an explicit {@link Container.disposeAsync} call. Disposal releases the
+ * disposable instances the container itself created — singletons on the root container and
+ * scoped instances on each scope — in reverse creation order.
  */
-export abstract class Container {
+export abstract class Container implements AsyncDisposable {
   /**
    * Retrieves an instance of the specified type from the container.
    * For singleton and scoped lifetimes, returns cached instances when available.
@@ -96,6 +101,27 @@ export abstract class Container {
    * @returns True if the service has a registration, false otherwise.
    */
   abstract hasRegistration<T>(id: Identifier<T>): boolean;
+
+  /**
+   * Disposes the disposable instances this container created, in reverse creation order.
+   *
+   * Only instances the container constructed via `useClass`/`useFactory` that implement
+   * `[Symbol.asyncDispose]` or `[Symbol.dispose]` are disposed; instances supplied via
+   * `useInstance`/`useValue`/overrides are caller-owned and left untouched, and transient
+   * instances are never tracked. Disposing a scope releases only that scope's instances —
+   * it never bubbles to parent singletons, and disposing the root never reaches child
+   * scopes you created (dispose those explicitly). Idempotent; after disposal, resolving
+   * from or scoping the container throws.
+   * @returns A promise that settles once every owned instance has been disposed.
+   */
+  abstract disposeAsync(): Promise<void>;
+
+  /**
+   * Async-dispose protocol entry point enabling `await using container = registry.build()`.
+   * Aliases {@link Container.disposeAsync}.
+   * @returns A promise that settles once every owned instance has been disposed.
+   */
+  abstract [Symbol.asyncDispose](): Promise<void>;
 }
 
 /**

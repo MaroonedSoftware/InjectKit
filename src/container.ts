@@ -1,5 +1,6 @@
 import { Container, ScopedContainer, Identifier, Instance, formatIdentifier, InjectKitNotSet } from './interfaces.js';
 import { Registration } from './internal.js';
+import { AsyncDisposableStack } from './async-disposable-stack.js';
 
 /**
  * Implementation of the dependency injection container.
@@ -8,6 +9,16 @@ import { Registration } from './internal.js';
 export class InjectKitContainer implements ScopedContainer, Container {
   /** Map storing cached instances for singleton and scoped lifetimes. */
   private readonly instances = new Map<Identifier<unknown>, unknown>();
+
+  /**
+   * Disposable instances this container owns, released in reverse creation order on
+   * disposal. Singletons are tracked on the root container, scoped instances on the
+   * scope that created them — mirroring where each is cached.
+   */
+  private readonly disposables = new AsyncDisposableStack();
+
+  /** Whether this container has been disposed, after which it is inert. */
+  private disposed = false;
 
   /**
    * Per-scope override registrations. Held separately from the shared base
@@ -88,6 +99,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
       }
     }
 
+    // Only instances the container itself constructed are container-owned and
+    // therefore eligible for disposal; caller-supplied instances/values are not.
+    const containerOwned = registration.constructor !== undefined || registration.factory !== undefined;
+
     if (registration.lifetime === 'singleton') {
       // Singletons are shared across the whole scope tree, so cache them at the root.
       let container: InjectKitContainer = this;
@@ -97,11 +112,44 @@ export class InjectKitContainer implements ScopedContainer, Container {
       }
 
       container.instances.set(id, instance);
+      container.trackDisposable(instance, containerOwned);
     } else if (registration.lifetime === 'scoped') {
       this.instances.set(id, instance);
+      this.trackDisposable(instance, containerOwned);
     }
 
     return instance;
+  }
+
+  /**
+   * Registers a container-owned instance for disposal when it implements a dispose
+   * protocol. Containers are skipped so the auto-registered `Container` (and any
+   * factory returning a container) never schedules itself for self-disposal.
+   * @param instance The cached instance to consider for disposal.
+   * @param containerOwned Whether the container constructed the instance itself.
+   */
+  private trackDisposable(instance: unknown, containerOwned: boolean): void {
+    if (!containerOwned || instance instanceof InjectKitContainer) {
+      return;
+    }
+
+    if (InjectKitContainer.isDisposable(instance)) {
+      this.disposables.use(instance);
+    }
+  }
+
+  /**
+   * Determines whether a value implements the async or sync dispose protocol.
+   * @param value The value to inspect.
+   * @returns True when the value carries `[Symbol.asyncDispose]` or `[Symbol.dispose]`.
+   */
+  private static isDisposable(value: unknown): value is AsyncDisposable | Disposable {
+    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+      return false;
+    }
+
+    const indexed = value as Record<symbol, unknown>;
+    return typeof indexed[Symbol.asyncDispose] === 'function' || typeof indexed[Symbol.dispose] === 'function';
   }
 
   /**
@@ -135,6 +183,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @throws {Error} If no registration is found for the specified identifier.
    */
   public get<T>(id: Identifier<T>): T {
+    if (this.disposed) {
+      throw new Error('Cannot resolve from a disposed container');
+    }
+
     const registration = this.findRegistration(id);
     if (!registration) {
       throw new Error(`Registration for ${formatIdentifier(id)} not found`);
@@ -167,7 +219,34 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @returns A new scoped container instance with this container as its parent.
    */
   public createScopedContainer(): ScopedContainer {
+    if (this.disposed) {
+      throw new Error('Cannot create a scope from a disposed container');
+    }
+
     return new InjectKitContainer(this.registrations, this);
+  }
+
+  /**
+   * Disposes the disposable instances this container created, in reverse creation order.
+   * Releases only instances owned by this container — scoped instances for a scope, or
+   * singletons for the root — never bubbling to parent singletons or down into child
+   * scopes. Idempotent: a second call is a no-op.
+   * @returns A promise that settles once every owned instance has been disposed.
+   */
+  public async disposeAsync(): Promise<void> {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    await this.disposables.disposeAsync();
+  }
+
+  /**
+   * Async-dispose protocol entry point enabling `await using`. Aliases {@link disposeAsync}.
+   * @returns A promise that settles once every owned instance has been disposed.
+   */
+  public [Symbol.asyncDispose](): Promise<void> {
+    return this.disposeAsync();
   }
 
   /**

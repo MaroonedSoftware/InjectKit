@@ -15,6 +15,7 @@
   <a href="#browser-usage">Browser Usage</a> •
   <a href="#core-concepts">Core Concepts</a> •
   <a href="#api-reference">API Reference</a> •
+  <a href="#disposal">Disposal</a> •
   <a href="#license">License</a>
 </p>
 
@@ -29,6 +30,7 @@
 - 📦 **Collection support** — Register arrays and maps of implementations
 - 🔍 **Validation** — Automatic detection of missing and circular dependencies
 - 🧪 **Test-friendly** — Easy mocking with scoped container overrides
+- ♻️ **Disposable** — `await using` / `disposeAsync()` tears down owned resources in reverse order
 
 ## Installation
 
@@ -361,6 +363,14 @@ testScope.override(EmailService, {
 const service = testScope.get(NotificationService);
 ```
 
+#### `disposeAsync(): Promise<void>`
+
+Disposes the disposable instances the container created, in reverse creation order. Also available as `[Symbol.asyncDispose]()`, so a container or scope works with `await using`. See [Disposal](#disposal) for the ownership contract.
+
+```typescript
+await container.disposeAsync();
+```
+
 ### Registry Methods
 
 #### `register<T>(token): RegistrationType<T>`
@@ -474,6 +484,57 @@ const instance1 = scope1.get(ScopedService);
 const instance2 = scope2.get(ScopedService);
 console.log(instance1 === instance2); // true
 ```
+
+## Disposal
+
+Containers and scopes implement [`AsyncDisposable`](https://github.com/tc39/proposal-explicit-resource-management), so they can release the resources they created. A container disposes any instance it constructed that implements `[Symbol.asyncDispose]` or `[Symbol.dispose]`, tearing them down in **reverse creation order** (so a service is disposed before the dependencies it was built from).
+
+```typescript
+@Injectable()
+class DbConnection {
+  async [Symbol.asyncDispose]() {
+    await this.pool.end();
+  }
+}
+
+registry.register(DbConnection).useClass(DbConnection).asSingleton();
+
+// Explicit disposal
+const container = registry.build();
+const db = container.get(DbConnection);
+await container.disposeAsync(); // db's [Symbol.asyncDispose] runs
+
+// Or with `await using` — disposed automatically at the end of the block
+{
+  await using container = registry.build();
+  container.get(DbConnection);
+} // disposed here
+```
+
+### What gets disposed
+
+| Registration                              | Disposed?                                         |
+| ----------------------------------------- | ------------------------------------------------- |
+| `useClass` / `useFactory` (container-built) | ✅ if it implements a dispose protocol            |
+| `useInstance` / `useValue` / overrides    | ❌ caller owns the instance                       |
+| Transient                                 | ❌ never tracked — the caller owns each instance  |
+
+Detection is protocol-based: a service opts in by implementing `[Symbol.asyncDispose]` (async) or `[Symbol.dispose]` (sync). A bare `dispose()` method is not enough.
+
+### Scopes and disposal
+
+Disposing a scope releases only that scope's scoped instances — it never bubbles up to parent singletons. Disposing the root releases singletons but does **not** reach into child scopes you created, so dispose each scope at the end of its unit of work.
+
+```typescript
+const root = registry.build();
+const scope = root.createScopedContainer();
+scope.get(RequestContext);
+
+await scope.disposeAsync(); // scoped instances disposed; root singletons untouched
+await root.disposeAsync(); // singletons disposed
+```
+
+Disposal is idempotent. After a container is disposed, calling `get()` or `createScopedContainer()` on it throws.
 
 ## Validation
 
