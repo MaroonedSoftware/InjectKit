@@ -165,6 +165,18 @@ const service = container.get(MyService);
 const resolvedContainer = container.get(Container);
 ```
 
+### Noop Container
+
+`InjectKitContainerNoop` is a null-object container that satisfies the same `Container` / `ScopedContainer` contract but holds no registrations. Every `get()` throws "not found", `override()` is a no-op, and `hasRegistration()` always returns `false`. It is handy as a safe default or placeholder where a real container is not yet wired up, and it mirrors the real container's disposal semantics (resolving, overriding, or scoping after `disposeAsync()` throws).
+
+```typescript
+import { InjectKitContainerNoop } from 'injectkit';
+
+const container = new InjectKitContainerNoop();
+container.hasRegistration(MyService); // false
+container.get(MyService); // throws: Registration for MyService not found
+```
+
 ### Identifier
 
 An **Identifier** is whatever you pass to `register()`, `get()`, and friends to refer to a service. It can be a class constructor, an abstract class, or a **Token** (a string or symbol). Using abstract classes and tokens lets you program to interfaces:

@@ -161,6 +161,28 @@ describe('container disposal', () => {
     expect(() => container.createScopedContainer()).toThrow(/disposed/);
   });
 
+  it('rejects override after disposal', async () => {
+    const registry = new InjectKitRegistry();
+    registry.register(AsyncResource).useClass(AsyncResource).asSingleton();
+    const container = registry.build().createScopedContainer();
+
+    await container.disposeAsync();
+
+    expect(() => container.override(AsyncResource, new AsyncResource())).toThrow(/disposed/);
+  });
+
+  it('reports no registrations after disposal', async () => {
+    const registry = new InjectKitRegistry();
+    registry.register(AsyncResource).useClass(AsyncResource).asSingleton();
+    const container = registry.build();
+
+    expect(container.hasRegistration(AsyncResource)).toBe(true);
+
+    await container.disposeAsync();
+
+    expect(container.hasRegistration(AsyncResource)).toBe(false);
+  });
+
   it('supports await using on the container', async () => {
     const registry = new InjectKitRegistry();
     registry.register(AsyncResource).useClass(AsyncResource).asSingleton();

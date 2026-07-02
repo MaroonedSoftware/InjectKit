@@ -45,6 +45,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @returns The matching registration, or undefined if none is registered.
    */
   private findRegistration<T>(id: Identifier<T>): Registration<T> | undefined {
+    if (this.disposed) {
+      return undefined;
+    }
+
     let scope: InjectKitContainer | undefined = this;
     while (scope) {
       const override = scope.overrides.get(id);
@@ -68,6 +72,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @throws {Error} If the registration has no valid creation strategy.
    */
   private createInstance<T>(id: Identifier<T>, registration: Registration<T>): T {
+    if (this.disposed) {
+      throw new Error('Cannot create an instance from a disposed container');
+    }
+
     let instance: T;
 
     if (registration.constructor) {
@@ -256,8 +264,12 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * @template T The type of instance to override.
    * @param id The identifier for the type to override.
    * @param instance The instance to use for the override.
+   * @throws {Error} If the container has been disposed.
    */
   public override<T>(id: Identifier<T>, instance: Instance<T>): void {
+    if (this.disposed) {
+      throw new Error('Cannot override a registration in a disposed container');
+    }
     this.overrides.set(id, {
       constructor: undefined,
       lifetime: 'scoped',
