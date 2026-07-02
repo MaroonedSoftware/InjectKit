@@ -1,5 +1,11 @@
 # injectkit
 
+## 1.6.0
+
+### Minor Changes
+
+- 0d30217: Add `InjectKitContainerNoop`, a null-object container that satisfies the `Container` / `ScopedContainer` contract with no registrations, and tighten disposed-state error handling so overriding a disposed container throws.
+
 ## 1.5.0
 
 ### Minor Changes
