@@ -1,99 +1,31 @@
 # InjectKit
 
-Lightweight, type-safe dependency injection container for TypeScript.
+Lightweight, type-safe DI container for TypeScript. ESM-only, published to npm as `injectkit` by Marooned Software.
 
-## Project Overview
-
-- **Package**: `injectkit` (npm), v1.1.0
-- **Author**: Marooned Software
-- **License**: MIT
-- **Runtime dependency**: `reflect-metadata`
-- **Node**: >= 20, ESM-only
-
-## Tech Stack
-
-- TypeScript 5.9+ with `experimentalDecorators` and `emitDecoratorMetadata`
-- Build: `tsup` (ESM bundle) + `tsc` (declarations)
-- Test: Vitest with `unplugin-swc` for decorator support
-- Lint: ESLint + Prettier
-- Package manager: pnpm
-- CI/CD: GitHub Actions with Changesets for versioning
-- Coverage: codecov
+Usage flow: build an `InjectKitRegistry`, register with the fluent API (`.register(Id).useClass(Impl).asSingleton()`), call `registry.build()` (which validates), get an `InjectKitContainer`, resolve with `container.get(Id)`.
 
 ## Commands
 
 ```bash
-pnpm run build        # Build (tsup + tsc declarations)
-pnpm run build:ci     # Lint + build
-pnpm run test         # Run tests
-pnpm run test:ci      # Run tests with coverage
-pnpm run lint         # ESLint with auto-fix
-pnpm run format       # Prettier
-pnpm run changeset    # Create changeset + version bump
+pnpm run build     # tsup bundle + tsc declarations
+pnpm run test      # vitest
+pnpm run lint      # eslint --fix
+pnpm run changeset # changeset + version bump (required for any user-facing change)
 ```
 
-## Project Structure
+## Gotchas
 
-```
-src/
-  index.ts          # Public exports
-  injectable.ts     # @Injectable() decorator
-  interfaces.ts     # All public types (Container, Registry, Identifier, etc.)
-  internal.ts       # Internal Registration<T> type
-  registry.ts       # InjectKitRegistry + InjectKitRegistration (fluent builder)
-  container.ts      # InjectKitContainer (resolution + lifetime management)
-tests/
-  setup.ts          # Imports reflect-metadata
-  injectable.test.ts
-  registry.test.ts
-  container.test.ts
-```
+- **`@Injectable()` does nothing at runtime.** It is an identity decorator; its only job is to make TypeScript emit `design:paramtypes` metadata. Omitting it on a class that uses constructor injection silently breaks resolution rather than erroring at the decorator. Any test fixture with constructor injection needs it.
+- **Decorator metadata depends on the toolchain, not just the code.** `experimentalDecorators` + `emitDecoratorMetadata` in tsconfig, and `unplugin-swc` in the vitest config. Tests fail in confusing ways if either is dropped.
+- **Imports need explicit `.js` extensions** (NodeNext resolution), including in tests.
+- **Validation is build-time, not resolve-time.** Missing-dependency and circular-dependency checks run in `registry.build()` via DFS. New registration kinds must be taught to the validator or they bypass it.
+- **`Container` is auto-registered** as a singleton factory, so services can inject the container itself. Do not treat it as an unregistered identifier.
+- **Scoped containers form a parent chain.** Scoped instances cache on the scope that resolves them; singletons bubble to the root container. Getting this backwards is the easiest lifetime bug to introduce.
+- **`useInstance` is always a singleton** regardless of any lifetime call.
+- **ESLint reports everything as warnings** (`eslint-plugin-only-warn`), so a clean exit code does not mean a clean lint. Read the output.
 
-## Architecture
+## Conventions
 
-### Core Flow
-1. Create `InjectKitRegistry`
-2. Register services with fluent API: `.register(Id).useClass(Impl).asSingleton()`
-3. Call `registry.build()` which validates (missing deps, circular deps) then returns `InjectKitContainer`
-4. Resolve with `container.get(Id)`
-
-### Registration Methods
-- `useClass(ctor)` — Constructor injection via `reflect-metadata`
-- `useFactory(fn)` — Factory function receiving `Container`
-- `useInstance(obj)` — Pre-built instance (always singleton)
-- `useArray(ctor)` — Array collection with `.push()` chaining
-- `useMap(ctor)` — Map collection with `.set(key, id)` chaining
-
-### Lifetimes
-- **Singleton**: cached in root container
-- **Transient**: new instance every `get()` call
-- **Scoped**: cached per scoped container, inherits from parent scope
-
-### Key Design Decisions
-- `@Injectable()` is an identity decorator — its only purpose is triggering TypeScript's `emitDecoratorMetadata` to emit `design:paramtypes`
-- `Container` is auto-registered as a singleton factory so services can resolve it
-- Validation runs at build time (DFS for circular deps, missing dep checks)
-- Scoped containers form a parent chain; singletons bubble to root
-
-## Coding Conventions
-
-- Strict TypeScript (`strict: true`, `noUncheckedIndexedAccess`)
-- ESM-only (`"type": "module"` in package.json)
-- `.js` extensions in imports (required for NodeNext resolution)
-- Fluent builder pattern for registration API
-- All public types in `interfaces.ts`, internal types in `internal.ts`
-- Tests use Vitest globals (`describe`, `it`, `expect` without imports)
-- Test setup file imports `reflect-metadata`
-- ESLint treats all errors as warnings (`eslint-plugin-only-warn`)
-- No CommonJS, no UMD
-
-## Important Patterns
-
-When adding new features:
-- Public types/interfaces go in `src/interfaces.ts`
-- Internal types go in `src/internal.ts`
-- Export new public items from `src/index.ts`
-- Registration builder logic goes in `InjectKitRegistration` class in `src/registry.ts`
-- Resolution logic goes in `InjectKitContainer` class in `src/container.ts`
-- Tests go in `tests/` following existing `*.test.ts` naming
-- Use `@Injectable()` on any test fixture classes that use constructor injection
+- Public types live in `src/interfaces.ts` only; internal types in `src/internal.ts`. New public items must also be exported from `src/index.ts`.
+- Tests live in top-level `tests/`, never colocated in `src/`.
+- Strict TS with `noUncheckedIndexedAccess`. No CommonJS, no UMD.
