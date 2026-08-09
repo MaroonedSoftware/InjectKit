@@ -502,4 +502,126 @@ describe('InjectKitRegistry', () => {
       expect(container.get(NoDependencyService).getValue()).toBe('no-deps');
     });
   });
+
+  describe('captive dependency validation', () => {
+    it('should throw when a singleton depends directly on a scoped registration', () => {
+      @Injectable()
+      class ScopedRepository {}
+
+      @Injectable({ deps: [ScopedRepository] })
+      class SingletonService {
+        constructor(public repository: ScopedRepository) {}
+      }
+
+      registry.register(ScopedRepository).useClass(ScopedRepository).asScoped();
+      registry.register(SingletonService).useClass(SingletonService).asSingleton();
+
+      expect(() => registry.build()).toThrow(/Captive dependency: singleton SingletonService depends on scoped ScopedRepository/);
+    });
+
+    it('should report the full path when the scoped registration is reached through a transient', () => {
+      @Injectable()
+      class ScopedRepository {}
+
+      @Injectable({ deps: [ScopedRepository] })
+      class TransientMiddle {
+        constructor(public repository: ScopedRepository) {}
+      }
+
+      @Injectable({ deps: [TransientMiddle] })
+      class SingletonService {
+        constructor(public middle: TransientMiddle) {}
+      }
+
+      registry.register(ScopedRepository).useClass(ScopedRepository).asScoped();
+      registry.register(TransientMiddle).useClass(TransientMiddle).asTransient();
+      registry.register(SingletonService).useClass(SingletonService).asSingleton();
+
+      expect(() => registry.build()).toThrow(/SingletonService -> TransientMiddle -> ScopedRepository/);
+    });
+
+    it('should not traverse through an intermediate singleton', () => {
+      // The intermediate singleton is itself invalid, but the outer singleton
+      // must not be blamed for a scope it never holds directly.
+      @Injectable()
+      class LeafService {}
+
+      @Injectable({ deps: [LeafService] })
+      class InnerSingleton {
+        constructor(public leaf: LeafService) {}
+      }
+
+      @Injectable({ deps: [InnerSingleton] })
+      class OuterSingleton {
+        constructor(public inner: InnerSingleton) {}
+      }
+
+      registry.register(LeafService).useClass(LeafService).asScoped();
+      registry.register(InnerSingleton).useClass(InnerSingleton).asSingleton();
+      registry.register(OuterSingleton).useClass(OuterSingleton).asSingleton();
+
+      expect(() => registry.build()).toThrow(/singleton InnerSingleton depends on scoped LeafService/);
+    });
+
+    it('should throw when a singleton reaches a scoped registration through an array collection', () => {
+      @Injectable({ deps: [NotificationArray] })
+      class SingletonService {
+        constructor(public notifiers: NotificationArray) {}
+      }
+
+      registry.register(EmailNotifier).useClass(EmailNotifier).asScoped();
+      registry.register(NotificationArray).useArray(NotificationArray).push(EmailNotifier);
+      registry.register(SingletonService).useClass(SingletonService).asSingleton();
+
+      expect(() => registry.build()).toThrow(/SingletonService -> NotificationArray -> EmailNotifier/);
+    });
+
+    it('should allow a singleton to depend on singletons and transients', () => {
+      @Injectable()
+      class TransientHelper {}
+
+      @Injectable()
+      class SingletonHelper {}
+
+      @Injectable({ deps: [TransientHelper, SingletonHelper] })
+      class SingletonService {
+        constructor(
+          public transient: TransientHelper,
+          public singleton: SingletonHelper,
+        ) {}
+      }
+
+      registry.register(TransientHelper).useClass(TransientHelper).asTransient();
+      registry.register(SingletonHelper).useClass(SingletonHelper).asSingleton();
+      registry.register(SingletonService).useClass(SingletonService).asSingleton();
+
+      expect(() => registry.build()).not.toThrow();
+    });
+
+    it('should allow a scoped registration to depend on a scoped registration', () => {
+      @Injectable()
+      class ScopedRepository {}
+
+      @Injectable({ deps: [ScopedRepository] })
+      class ScopedService {
+        constructor(public repository: ScopedRepository) {}
+      }
+
+      registry.register(ScopedRepository).useClass(ScopedRepository).asScoped();
+      registry.register(ScopedService).useClass(ScopedService).asScoped();
+
+      expect(() => registry.build()).not.toThrow();
+    });
+
+    it('should allow a singleton to inject the auto-registered Container', () => {
+      @Injectable({ deps: [Container] })
+      class SingletonService {
+        constructor(public container: Container) {}
+      }
+
+      registry.register(SingletonService).useClass(SingletonService).asSingleton();
+
+      expect(() => registry.build()).not.toThrow();
+    });
+  });
 });

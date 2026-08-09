@@ -150,6 +150,65 @@ export class InjectKitRegistry implements Registry {
   }
 
   /**
+   * Verifies that no singleton captures a scoped registration.
+   *
+   * A singleton is cached once at the root container and outlives every scope,
+   * so a scoped dependency it holds is frozen to whichever scope happened to
+   * construct it first: later scopes silently share that instance, and it is
+   * disposed when its originating scope ends. Transient registrations are
+   * traversed rather than reported, because a captured transient carries the
+   * same hazard through to whatever it depends on. Singletons terminate the
+   * walk since they are validated as their own roots.
+   *
+   * Factory registrations resolve through the container by hand and declare no
+   * dependencies, so a factory reaching for a scoped service is invisible here.
+   * @param registrations Map of all normalized registrations to verify.
+   * @throws {Error} If a singleton depends, directly or through transients, on a scoped registration.
+   */
+  private static verifyNoCaptiveDependencies(registrations: Map<Identifier<unknown>, Registration<unknown>>) {
+    /**
+     * Walks the dependencies of an identifier looking for a captured scope.
+     * @param id The identifier whose dependencies are being walked.
+     * @param path The traversal path so far, formatted for error reporting.
+     * @param visited Identifiers already walked for the current singleton root.
+     */
+    const checkCaptiveDependencies = (id: Identifier<unknown>, path: string[], visited: Set<Identifier<unknown>>) => {
+      const registration = registrations.get(id);
+      if (!registration) {
+        return;
+      }
+
+      for (const dependency of registration.dependencies) {
+        const dependencyRegistration = registrations.get(dependency);
+        if (!dependencyRegistration || visited.has(dependency)) {
+          continue;
+        }
+
+        const dependencyPath = [...path, formatIdentifier(dependency)];
+
+        if (dependencyRegistration.lifetime === 'scoped') {
+          throw new Error(
+            `Captive dependency: singleton ${path[0]} depends on scoped ${formatIdentifier(dependency)}: ${dependencyPath.join(' -> ')}. ` +
+              `A singleton outlives every scope, so it would capture one scope's instance and keep using it after that scope is disposed. ` +
+              `Make ${formatIdentifier(dependency)} a singleton, or ${path[0]} scoped.`,
+          );
+        }
+
+        if (dependencyRegistration.lifetime === 'transient') {
+          visited.add(dependency);
+          checkCaptiveDependencies(dependency, dependencyPath, visited);
+        }
+      }
+    };
+
+    for (const [id, config] of registrations.entries()) {
+      if (config.lifetime === 'singleton') {
+        checkCaptiveDependencies(id, [formatIdentifier(id)], new Set([id]));
+      }
+    }
+  }
+
+  /**
    * Creates a normalized registration from a decorated class.
    * This path is used by auto-registration and class-based build overrides.
    * @param token The token that should resolve to the class.
@@ -240,7 +299,8 @@ export class InjectKitRegistry implements Registry {
    * Builds a container from all configured sources.
    * The build order is explicit registrations, optional decorated registrations,
    * automatic Container registration, then build overrides. The final graph is
-   * validated for missing and circular dependencies before a container is returned.
+   * validated for missing dependencies, circular dependencies, and singletons
+   * capturing scoped registrations before a container is returned.
    * @param options Optional build-time composition settings.
    * @returns A configured container instance ready to resolve services.
    * @throws {Error} If validation fails.
@@ -282,6 +342,9 @@ export class InjectKitRegistry implements Registry {
 
     InjectKitRegistry.verifyRegistrations(registrations);
     InjectKitRegistry.verifyNoCircularDependencies(registrations);
+    // Runs last: the captive-dependency walk descends through transients and
+    // relies on the graph already being known acyclic.
+    InjectKitRegistry.verifyNoCaptiveDependencies(registrations);
 
     return new InjectKitContainer(registrations);
   }
@@ -395,6 +458,8 @@ class InjectKitRegistration<T> implements RegistrationType<T>, RegistrationLifeT
 
   /**
    * Sets the lifetime to singleton, sharing one instance across the container tree.
+   * Singletons resolve their dependencies from the root container, and may not
+   * depend on a scoped registration: `build()` rejects that as a captive dependency.
    */
   asSingleton(): void {
     this.lifetime = 'singleton';

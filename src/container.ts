@@ -62,9 +62,30 @@ export class InjectKitContainer implements ScopedContainer, Container {
   }
 
   /**
+   * Finds the root of this container's parent chain.
+   * @returns The topmost container, or this container when it has no parent.
+   */
+  private rootContainer(): InjectKitContainer {
+    let container: InjectKitContainer = this;
+
+    while (container.parent) {
+      container = container.parent;
+    }
+
+    return container;
+  }
+
+  /**
    * Creates a new instance from a normalized registration.
    * Handles constructor-based, factory-based and instance-based registrations,
    * then caches singleton and scoped instances according to their lifetime.
+   *
+   * Singletons resolve their dependencies from the root container rather than
+   * from the scope that happened to trigger construction. A singleton is cached
+   * at the root and outlives every scope, so resolving its dependencies through
+   * a scope would let the first caller permanently capture that scope's
+   * instances and per-scope {@link override} values, and would leave the
+   * singleton holding objects that are disposed when the scope ends.
    * @template T The type of instance to create.
    * @param id The identifier for the registration being resolved.
    * @param registration The normalized registration configuration.
@@ -76,17 +97,19 @@ export class InjectKitContainer implements ScopedContainer, Container {
       throw new Error('Cannot create an instance from a disposed container');
     }
 
+    const resolver = registration.lifetime === 'singleton' ? this.rootContainer() : this;
+
     let instance: T;
 
     if (registration.constructor) {
       const dependencies: unknown[] = [];
       for (const dependency of registration.ctorDependencies || []) {
-        dependencies.push(this.get(dependency));
+        dependencies.push(resolver.get(dependency));
       }
 
       instance = new registration.constructor(...dependencies);
     } else if (registration.factory) {
-      instance = registration.factory(this);
+      instance = registration.factory(resolver);
     } else if (registration.instance !== InjectKitNotSet) {
       instance = registration.instance;
     } else {
@@ -98,11 +121,11 @@ export class InjectKitContainer implements ScopedContainer, Container {
     if (registration.collectionDependencies) {
       if (Array.isArray(registration.collectionDependencies) && instance instanceof Array) {
         for (const dependency of registration.collectionDependencies) {
-          instance.push(this.get(dependency));
+          instance.push(resolver.get(dependency));
         }
       } else if (registration.collectionDependencies instanceof Map && instance instanceof Map) {
         for (const [key, dependency] of registration.collectionDependencies) {
-          instance.set(key, this.get(dependency));
+          instance.set(key, resolver.get(dependency));
         }
       }
     }
@@ -112,15 +135,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
     const containerOwned = registration.constructor !== undefined || registration.factory !== undefined;
 
     if (registration.lifetime === 'singleton') {
-      // Singletons are shared across the whole scope tree, so cache them at the root.
-      let container: InjectKitContainer = this;
-
-      while (container.parent) {
-        container = container.parent;
-      }
-
-      container.instances.set(id, instance);
-      container.trackDisposable(instance, containerOwned);
+      // Singletons are shared across the whole scope tree, so cache them at the
+      // root: the same container their dependencies were resolved from.
+      resolver.instances.set(id, instance);
+      resolver.trackDisposable(instance, containerOwned);
     } else if (registration.lifetime === 'scoped') {
       this.instances.set(id, instance);
       this.trackDisposable(instance, containerOwned);
@@ -185,6 +203,9 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * Retrieves an instance of the specified token from the container.
    * For singleton and scoped lifetimes, returns cached instances when available.
    * For transient lifetimes, creates a new instance each time.
+   *
+   * Resolving a singleton from a scope still builds it from the root container,
+   * so it never captures the resolving scope's instances or overrides.
    * @template T The type of instance to retrieve.
    * @param id The identifier for the type to resolve.
    * @returns An instance of type T.
@@ -261,6 +282,10 @@ export class InjectKitContainer implements ScopedContainer, Container {
    * Overrides a registration with an existing instance in the current scope.
    * The override is stored in the per-scope override map so it never leaks to
    * the parent or sibling scopes.
+   *
+   * Singletons are unaffected: they resolve their dependencies from the root
+   * container, so a scope-level override is not visible to them. Override on
+   * the root container to substitute a singleton's dependency.
    * @template T The type of instance to override.
    * @param id The identifier for the type to override.
    * @param instance The instance to use for the override.

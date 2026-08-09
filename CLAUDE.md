@@ -21,6 +21,8 @@ pnpm run changeset # changeset + version bump (required for any user-facing chan
 - **Validation is build-time, not resolve-time.** Missing-dependency and circular-dependency checks run in `registry.build()` via DFS. New registration kinds must be taught to the validator or they bypass it.
 - **`Container` is auto-registered** as a singleton factory, so services can inject the container itself. Do not treat it as an unregistered identifier.
 - **Scoped containers form a parent chain.** Scoped instances cache on the scope that resolves them; singletons bubble to the root container. Getting this backwards is the easiest lifetime bug to introduce.
+- **Singletons resolve their dependencies from the root container**, not from the scope that triggered construction. This is deliberate: a singleton cached at the root would otherwise capture the first resolving scope's instances and `override()` values forever, and keep using them after that scope is disposed. Singleton factories are handed the root container for the same reason. Reverting this to `this.get(dep)` reintroduces a real production bug (a request transaction captured into a singleton repository).
+- **A singleton may not depend on a scoped registration.** `build()` rejects it, following transient links to catch indirect captures. Factory registrations declare no dependencies, so this check cannot see through `useFactory`.
 - **`useInstance` is always a singleton** regardless of any lifetime call.
 - **ESLint reports everything as warnings** (`eslint-plugin-only-warn`), so a clean exit code does not mean a clean lint. Read the output.
 

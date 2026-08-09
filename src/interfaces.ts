@@ -160,6 +160,8 @@ export type Lifetime = 'singleton' | 'transient' | 'scoped';
 export interface RegistrationLifeTime {
   /**
    * Sets the lifetime to singleton, sharing one instance across the container tree.
+   * Singletons resolve their dependencies from the root container, and may not
+   * depend on a scoped registration: `build()` rejects that as a captive dependency.
    */
   asSingleton(): void;
 

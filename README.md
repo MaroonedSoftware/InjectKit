@@ -28,7 +28,7 @@
 - 🔄 **Multiple lifetimes** — Singleton, transient, and scoped instance management
 - 🏭 **Flexible registration** — Classes, factories, or existing instances
 - 📦 **Collection support** — Register arrays and maps of implementations
-- 🔍 **Validation** — Automatic detection of missing and circular dependencies
+- 🔍 **Validation** — Automatic detection of missing dependencies, circular dependencies, and captive scopes
 - 🧪 **Test-friendly** — Easy mocking with scoped container overrides
 - ♻️ **Disposable** — `await using` / `disposeAsync()` tears down owned resources in reverse order
 
@@ -226,6 +226,13 @@ registry.register(RequestId).useClass(RequestId).asScoped();
 registry.register(TempCalculation).useClass(TempCalculation).asTransient();
 ```
 
+Because a singleton is cached at the root and outlives every scope, its
+dependencies are always resolved from the **root** container, even when the
+first `get()` that constructs it comes from a scope. A singleton therefore never
+captures a scope's instances or its per-scope `override()` values. A singleton
+that would hold a scoped registration is rejected at `build()` time; see
+[Captive Dependencies](#captive-dependencies).
+
 ## API Reference
 
 ### Registration Methods
@@ -373,6 +380,14 @@ testScope.override(EmailService, {
 
 // Tests use the mock
 const service = testScope.get(NotificationService);
+```
+
+A scope-level override is **not** visible to singletons. Singletons build from the
+root container, so they never pick up a scope's substitutions. To stub a
+singleton's dependency, override on the root container instead:
+
+```typescript
+container.override(EmailService, mockEmailService);
 ```
 
 #### `disposeAsync(): Promise<void>`
@@ -581,6 +596,38 @@ registry.register(ServiceA).useClass(ServiceA).asSingleton();
 registry.register(ServiceB).useClass(ServiceB).asSingleton();
 registry.build(); // ❌ Error: Circular dependency found: ServiceA -> ServiceB -> ServiceA
 ```
+
+### Captive Dependencies
+
+A singleton is created once and cached at the root container, so anything it
+holds lives just as long. If that dependency is `scoped`, the singleton freezes
+whichever scope's instance it saw first: every later scope silently shares it,
+and it keeps being used after its originating scope is disposed.
+
+```typescript
+@Injectable({ deps: [RequestContext] })
+class CacheService {
+  constructor(private context: RequestContext) {}
+}
+
+registry.register(RequestContext).useClass(RequestContext).asScoped();
+registry.register(CacheService).useClass(CacheService).asSingleton();
+registry.build();
+// ❌ Error: Captive dependency: singleton CacheService depends on scoped RequestContext:
+// CacheService -> RequestContext. A singleton outlives every scope, so it would capture
+// one scope's instance and keep using it after that scope is disposed.
+// Make RequestContext a singleton, or CacheService scoped.
+```
+
+The check follows transient links too, so an indirectly captured scope is
+reported with the full path (`CacheService -> Helper -> RequestContext`).
+Depending on a **transient** is allowed: the transient is simply created once
+from the root container and shared for the singleton's lifetime.
+
+Factory registrations resolve through the container by hand and declare no
+dependencies, so a `useFactory` that reaches for a scoped service cannot be
+validated here. Singleton factories are handed the root container, which keeps
+them from capturing a scope by accident.
 
 ### Missing Dependency Metadata
 

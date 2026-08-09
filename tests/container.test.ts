@@ -451,4 +451,145 @@ describe('InjectKitContainer', () => {
       expect(mixed1).not.toBe(mixed2);
     });
   });
+
+  describe('singleton dependency resolution', () => {
+    it('should resolve singleton dependencies from the root container, ignoring scope overrides', () => {
+      @Injectable()
+      class Connection {
+        public readonly kind: string = 'pool';
+      }
+
+      @Injectable({ deps: [Connection] })
+      class SingletonRepository {
+        constructor(public connection: Connection) {}
+      }
+
+      registry.register(Connection).useClass(Connection).asSingleton();
+      registry.register(SingletonRepository).useClass(SingletonRepository).asSingleton();
+
+      const container = registry.build();
+      const scope = container.createScopedContainer();
+
+      // Mirrors a per-request transaction override: the singleton must not
+      // capture it just because this scope triggered construction.
+      const transaction = { kind: 'transaction' } as Connection;
+      scope.override(Connection, transaction);
+
+      const repository = scope.get(SingletonRepository);
+      expect(repository.connection).not.toBe(transaction);
+      expect(repository.connection.kind).toBe('pool');
+      expect(repository.connection).toBe(container.get(Connection));
+    });
+
+    it('should give a singleton the same dependency regardless of which scope built it first', () => {
+      @Injectable()
+      class Connection {}
+
+      @Injectable({ deps: [Connection] })
+      class SingletonRepository {
+        constructor(public connection: Connection) {}
+      }
+
+      registry.register(Connection).useClass(Connection).asSingleton();
+      registry.register(SingletonRepository).useClass(SingletonRepository).asSingleton();
+
+      const container = registry.build();
+      const scope1 = container.createScopedContainer();
+      const scope2 = container.createScopedContainer();
+
+      const fromScope1 = scope1.get(SingletonRepository);
+      const fromScope2 = scope2.get(SingletonRepository);
+
+      expect(fromScope1).toBe(fromScope2);
+      expect(fromScope1.connection).toBe(container.get(Connection));
+    });
+
+    it('should resolve a transient dependency of a singleton from the root container', () => {
+      @Injectable()
+      class Marker {
+        public readonly kind: string = 'root';
+      }
+
+      @Injectable({ deps: [Marker] })
+      class TransientHolder {
+        constructor(public marker: Marker) {}
+      }
+
+      @Injectable({ deps: [TransientHolder] })
+      class SingletonService {
+        constructor(public holder: TransientHolder) {}
+      }
+
+      registry.register(Marker).useClass(Marker).asSingleton();
+      registry.register(TransientHolder).useClass(TransientHolder).asTransient();
+      registry.register(SingletonService).useClass(SingletonService).asSingleton();
+
+      const container = registry.build();
+      const scope = container.createScopedContainer();
+      scope.override(Marker, { kind: 'scope' } as Marker);
+
+      expect(scope.get(SingletonService).holder.marker.kind).toBe('root');
+    });
+
+    it('should hand a singleton factory the root container', () => {
+      const seen: Container[] = [];
+      registry
+        .register<{ id: number }>('config')
+        .useFactory((resolved) => {
+          seen.push(resolved);
+          return { id: 1 };
+        })
+        .asSingleton();
+
+      const root = registry.build();
+      const scope = root.createScopedContainer();
+      scope.get<{ id: number }>('config');
+
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toBe(root);
+    });
+
+    it('should apply a root-level override to a singleton dependency', () => {
+      @Injectable()
+      class Connection {
+        public readonly kind: string = 'pool';
+      }
+
+      @Injectable({ deps: [Connection] })
+      class SingletonRepository {
+        constructor(public connection: Connection) {}
+      }
+
+      registry.register(Connection).useClass(Connection).asSingleton();
+      registry.register(SingletonRepository).useClass(SingletonRepository).asSingleton();
+
+      const container = registry.build();
+      const stub = { kind: 'stub' } as Connection;
+      container.override(Connection, stub);
+
+      expect(container.get(SingletonRepository).connection).toBe(stub);
+    });
+
+    it('should still resolve scoped registrations from the resolving scope', () => {
+      @Injectable()
+      class ScopedService {
+        public readonly id = Math.random().toString(36).substring(7);
+      }
+
+      @Injectable({ deps: [ScopedService] })
+      class ScopedConsumer {
+        constructor(public service: ScopedService) {}
+      }
+
+      registry.register(ScopedService).useClass(ScopedService).asScoped();
+      registry.register(ScopedConsumer).useClass(ScopedConsumer).asScoped();
+
+      const root = registry.build();
+      const scope1 = root.createScopedContainer();
+      const scope2 = root.createScopedContainer();
+
+      expect(scope1.get(ScopedConsumer).service).toBe(scope1.get(ScopedService));
+      expect(scope1.get(ScopedConsumer).service).not.toBe(scope2.get(ScopedConsumer).service);
+    });
+  });
 });
