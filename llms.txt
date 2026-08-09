@@ -1,0 +1,307 @@
+# InjectKit
+
+> Lightweight, type-safe dependency injection container for TypeScript. ESM-only.
+> Build a registry, register services with a fluent API, call `build()` to validate
+> the graph, then resolve from the returned container.
+
+This file is a complete, self-contained reference written for LLMs and coding agents.
+Everything below is accurate for the installed version; prefer it over guessing from
+general DI knowledge, because several of InjectKit's rules differ from other containers.
+
+## Install
+
+```bash
+npm install injectkit
+```
+
+ESM-only. No CommonJS or UMD build. Requires Node >= 22.
+
+## Required setup (read this first)
+
+Constructor injection will not work without the right toolchain config. This is the most
+common failure and it fails **silently** (resolution produces `undefined` dependencies)
+rather than raising a clear error.
+
+Two options:
+
+**Option A (portable): declare deps explicitly.** Works with any toolchain, no reflection
+metadata needed. Use this when you cannot rely on emitted metadata, such as browser
+builds and bundlers that strip it.
+
+```typescript
+@Injectable({ deps: [Logger, Database] })
+class UserService {
+  constructor(
+    private logger: Logger,
+    private db: Database,
+  ) {}
+}
+```
+
+**Option B (recommended): rely on emitted metadata.** Keeps the decorator free of a
+dependency list that has to stay in sync with the constructor signature.
+
+```typescript
+@Injectable()
+class UserService {
+  constructor(private logger: Logger) {}
+}
+```
+
+This requires `tsconfig.json` with both `"experimentalDecorators": true` and
+`"emitDecoratorMetadata": true`, plus `import 'reflect-metadata'` once at your entry
+point. Bundlers and test runners need a transform that preserves decorator metadata (e.g.
+`unplugin-swc` for Vite/Vitest). If any of that is missing, resolution silently produces
+`undefined` dependencies, so verify the setup before assuming a wiring bug. Explicit
+`deps` always take priority when both are present, so you can mix the two and migrate
+gradually.
+
+**`@Injectable()` does nothing at runtime.** It is an identity decorator whose only job
+is to record metadata. Omitting it on a class that uses constructor injection breaks
+resolution silently. Every class with constructor dependencies needs it (or one of the
+lifetime decorators below, which imply it).
+
+## Minimal complete example
+
+```typescript
+import 'reflect-metadata'; // once, at your entry point
+import { createRegistry, Injectable } from 'injectkit';
+
+@Injectable()
+class Logger {
+  log(message: string) {
+    console.log(message);
+  }
+}
+
+@Injectable()
+class UserService {
+  constructor(private logger: Logger) {}
+
+  createUser(name: string) {
+    this.logger.log(`creating ${name}`);
+  }
+}
+
+const registry = createRegistry();
+registry.register(Logger).useClass(Logger).asSingleton();
+registry.register(UserService).useClass(UserService).asSingleton();
+
+const container = registry.build(); // validates the graph, throws on problems
+container.get(UserService).createUser('ada');
+```
+
+## API
+
+### Entry points
+
+| Export                 | Signature                                            | Notes                            |
+| ---------------------- | ---------------------------------------------------- | -------------------------------- |
+| `createRegistry`       | `(metadataRegistry?: MetadataRegistry) => InjectKitRegistry` | Preferred way to make a registry |
+| `InjectKitRegistry`    | `new (metadataRegistry?: MetadataRegistry)`          | Same thing as a class            |
+| `InjectKitContainerNoop` | `new ()`                                           | Null-object container; every `get()` throws, `override()` is a no-op, `hasRegistration()` is always `false` |
+
+### Registry
+
+| Method                        | Returns              | Notes                                          |
+| ----------------------------- | -------------------- | ---------------------------------------------- |
+| `register<T>(id)`             | `RegistrationType<T>` | `id` is a class, abstract class, string, or symbol. Throws if already registered. |
+| `registerValue<T>(token, v)`  | `this`               | `token` must be a string or symbol. Always a singleton. |
+| `remove<T>(id)`               | `void`               | Throws if not registered.                      |
+| `isRegistered<T>(id)`         | `boolean`            |                                                |
+| `build(options?)`             | `Container`          | Validates, then returns the container.         |
+
+### Creation strategies (pick exactly one per registration)
+
+| Method                  | Then                    | Notes                                        |
+| ----------------------- | ----------------------- | -------------------------------------------- |
+| `.useClass(Ctor)`       | `.asSingleton()` etc.   | Constructor injection.                       |
+| `.useFactory(fn)`       | `.asSingleton()` etc.   | `fn: (container: Container) => T`.           |
+| `.useInstance(obj)`     | terminal                | **Always singleton**, lifetime calls ignored. |
+| `.useValue(v)`          | terminal                | **Always singleton**. Use for primitives, `undefined`, falsy values. |
+| `.useArray(Ctor)`       | `.push(id)`             | Collects several tokens into an array.       |
+| `.useMap(Ctor)`         | `.set(key, id)`         | Collects several tokens into a map.          |
+
+### Lifetimes
+
+| Method           | Behavior                                                |
+| ---------------- | ------------------------------------------------------- |
+| `.asSingleton()` | One instance for the whole container tree, cached at the root. |
+| `.asScoped()`    | One instance per scope, shared down the scope's children. |
+| `.asTransient()` | New instance on every `get()`. **This is the default.**  |
+
+### Container
+
+| Method                    | Notes                                                     |
+| ------------------------- | --------------------------------------------------------- |
+| `get<T>(id): T`           | Throws if the id is not registered or the container is disposed. |
+| `hasRegistration<T>(id)`  | `boolean`.                                                |
+| `createScopedContainer()` | Returns a `ScopedContainer` (a `Container` plus `override`). |
+| `override<T>(id, inst)`   | Scoped containers only. Substitutes an instance in this scope. |
+| `disposeAsync()`          | Idempotent. Also available via `await using`.             |
+
+### Decorators
+
+| Decorator                  | Effect                                                    |
+| -------------------------- | --------------------------------------------------------- |
+| `@Injectable(options?)`    | Marks the class injectable. No default lifetime.           |
+| `@Singleton(options?)`     | Injectable, defaults to singleton.                         |
+| `@Scoped(options?)`        | Injectable, defaults to scoped.                            |
+| `@Transient(options?)`     | Injectable, defaults to transient.                         |
+| `@Provider(id, options?)`  | Declares the token this class satisfies during auto-registration. |
+
+`options` is `{ deps?: readonly Identifier<unknown>[] }`, in constructor parameter order.
+A lifetime set by decorator is a default; the fluent API overrides it.
+
+### build(options)
+
+```typescript
+container = registry.build({
+  // false (default) | true | Class[]
+  autoRegisterDecorated: [Logger, UserService],
+  overrides: [
+    { token: Logger, useClass: TestLogger, lifetime: 'singleton' },
+    { token: Clock, useFactory: () => fixedClock },
+    { token: CONFIG, useValue: { debug: true } },
+  ],
+});
+```
+
+Composition order: explicit registrations win over decorated ones, the automatic
+`Container` registration only fills a gap, and `overrides` are applied last so they can
+replace anything.
+
+Prefer the array form of `autoRegisterDecorated`. The default metadata registry is
+process-global, so `true` can pull in decorated classes from unrelated modules. For hard
+isolation, pass a fresh `new DefaultMetadataRegistry()` to `createRegistry()`.
+
+## Rules that differ from other DI containers
+
+These are the ones to get right; they are where incorrect code usually comes from.
+
+1. **The default lifetime is transient**, not singleton. Always state the lifetime you
+   want.
+2. **`useInstance` and `useValue` are always singletons**, regardless of any lifetime
+   call on the same registration.
+3. **Validation happens at `build()`, not at `get()`.** Missing dependencies, circular
+   dependencies, and captive dependencies all throw from `build()`.
+4. **A singleton may not depend on a scoped registration.** `build()` rejects it. See
+   "Captive dependencies" below.
+5. **Singletons resolve their dependencies from the root container**, even when the
+   `get()` that constructs one comes from a scope. A singleton therefore never sees a
+   scope's `override()` values. To stub a singleton's dependency, override on the root
+   container.
+6. **`Container` is auto-registered**, so any service can inject `Container` to resolve
+   lazily. It is transient, so each service receives the container that resolved it. It
+   is not an unregistered identifier; do not register it yourself unless you mean to
+   replace it.
+7. **Scoped instances cache on the scope that resolves them**; singletons bubble to the
+   root. A child scope inherits a scoped instance an ancestor has *already created*, but
+   a child that resolves first caches its own, and the parent then creates a separate
+   one. Resolve at the level that owns the unit of work, not in a nested scope.
+8. **Disposal is per-owner.** Disposing a scope releases only that scope's instances and
+   never bubbles to the root; disposing the root releases singletons but does not reach
+   into child scopes. Dispose each scope at the end of its unit of work. Only instances
+   the container constructed are disposed, so `useInstance` and `useValue` values are
+   left alone.
+
+## Captive dependencies
+
+A singleton is created once and cached at the root, so anything it holds lives just as
+long. If that dependency is scoped, the singleton would freeze one scope's instance and
+keep using it after that scope is disposed. `build()` rejects this:
+
+```typescript
+registry.register(RequestContext).useClass(RequestContext).asScoped();
+registry.register(CacheService).useClass(CacheService).asSingleton(); // depends on RequestContext
+registry.build();
+// Error: Captive dependency: singleton CacheService depends on scoped RequestContext:
+// CacheService -> RequestContext. ...
+```
+
+Fix it by making the dependency a singleton, or the dependent scoped. The check follows
+transient links, so indirect captures are reported with the full path. Depending on a
+transient is allowed: the transient is created once from the root and shared for the
+singleton's lifetime.
+
+The check cannot see through `useFactory`, since factories resolve by hand and declare no
+dependencies. A singleton factory is handed the root container, which prevents the
+accidental capture, but a factory that deliberately resolves a scoped token is on you.
+
+## Scopes
+
+```typescript
+const scope = container.createScopedContainer();
+try {
+  const service = scope.get(RequestHandler);
+  await service.handle();
+} finally {
+  await scope.disposeAsync();
+}
+```
+
+Or with explicit resource management:
+
+```typescript
+await using scope = container.createScopedContainer();
+```
+
+## Testing
+
+Two approaches, both first-class:
+
+```typescript
+// 1. Build-time overrides: swap an implementation for the whole container.
+const container = registry.build({
+  overrides: [{ token: EmailService, useValue: mockEmail }],
+});
+
+// 2. Scope overrides: swap per test, leaving the root untouched.
+const scope = container.createScopedContainer();
+scope.override(EmailService, mockEmail);
+```
+
+Remember rule 5: a scope override is invisible to singletons. If the service under test
+is a singleton, override on the root container or use a build-time override.
+
+## Error messages and what they mean
+
+| Message                                            | Cause                                               | Fix                                              |
+| -------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
+| `Missing dependencies for X: Y`                    | `Y` is injected but never registered.                | Register `Y`, or add it via `overrides`.         |
+| `Circular dependency found: A -> B -> A`           | A dependency cycle.                                  | Break the cycle, or inject `Container` and resolve lazily. |
+| `Captive dependency: singleton X depends on scoped Y` | A singleton would outlive a scoped instance.      | Change one of the two lifetimes.                 |
+| `Service dependency metadata unavailable: X`       | `X` has constructor params but no metadata at all.   | Check `emitDecoratorMetadata` and the `reflect-metadata` import, or add explicit `deps`. |
+| `Service dependencies incomplete: X`               | `deps` array is shorter than the constructor's parameter list. | List every constructor parameter in `deps`, in order. |
+| `Service dependency metadata incomplete: X`        | Reflected metadata exists but doesn't cover every parameter. | Usually a missing transform. Switch to explicit `deps`. |
+| `Registration for X already exists`                | `register()` called twice for one id.                | Use `remove()` first, or a build override.       |
+| `Registration for X not found`                     | Resolving an unregistered id.                        | Register it, or check `hasRegistration()` first. |
+| `Invalid registration for X`                       | A registration with no creation strategy.            | Call one of `useClass` / `useFactory` / `useInstance` / `useValue`. |
+| `Cannot resolve from a disposed container`         | `get()` after `disposeAsync()`.                      | Do not reuse a disposed scope.                   |
+
+## Type reference
+
+```typescript
+type Token = string | symbol;
+type Identifier<T> = Constructor<T> | Abstract<T> | Token;
+type Lifetime = 'singleton' | 'transient' | 'scoped';
+type Factory<T> = (container: Container) => T;
+type ScopedContainer = Container & { override<T>(id: Identifier<T>, instance: Instance<T>): void };
+type Override<T> =
+  | { token: Identifier<T>; useClass: Constructor<T>; lifetime?: Lifetime }
+  | { token: Identifier<T>; useFactory: Factory<T>; lifetime?: Lifetime }
+  | { token: Identifier<T>; useValue: Instance<T> };
+```
+
+Using a string or symbol token means `get()` cannot infer the type, so pass it:
+
+```typescript
+const LOGGER = Symbol('Logger');
+registry.register<Logger>(LOGGER).useClass(ConsoleLogger).asSingleton();
+const logger = container.get<Logger>(LOGGER);
+```
+
+## Links
+
+- Source and issues: https://github.com/MaroonedSoftware/injectkit
+- Full README: https://github.com/MaroonedSoftware/injectkit#readme

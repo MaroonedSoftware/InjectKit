@@ -31,6 +31,25 @@
 - 🔍 **Validation** — Automatic detection of missing dependencies, circular dependencies, and captive scopes
 - 🧪 **Test-friendly** — Easy mocking with scoped container overrides
 - ♻️ **Disposable** — `await using` / `disposeAsync()` tears down owned resources in reverse order
+- 🤖 **Agent-friendly** — Ships an [`llms.txt`](llms.txt) reference for LLMs and coding agents
+
+## Using InjectKit with an LLM or coding agent
+
+[`llms.txt`](llms.txt) is a dense, self-contained reference written for AI coding
+assistants. It covers the full API, the required decorator setup, the rules that differ
+from other DI containers, and a table mapping every error message to its cause and fix.
+
+It ships inside the published package, so an agent working in a project that depends on
+InjectKit can read it directly from disk with no network access:
+
+```
+node_modules/injectkit/llms.txt
+```
+
+Point your assistant at that path (or paste the file into context) before asking it to
+write InjectKit code. Its behavioral claims are pinned by
+[`tests/llms-claims.test.ts`](tests/llms-claims.test.ts), so the file cannot silently
+drift from the implementation.
 
 ## Installation
 
@@ -540,11 +559,11 @@ await container.disposeAsync(); // db's [Symbol.asyncDispose] runs
 
 ### What gets disposed
 
-| Registration                              | Disposed?                                         |
-| ----------------------------------------- | ------------------------------------------------- |
-| `useClass` / `useFactory` (container-built) | ✅ if it implements a dispose protocol            |
-| `useInstance` / `useValue` / overrides    | ❌ caller owns the instance                       |
-| Transient                                 | ❌ never tracked — the caller owns each instance  |
+| Registration                                | Disposed?                                        |
+| ------------------------------------------- | ------------------------------------------------ |
+| `useClass` / `useFactory` (container-built) | ✅ if it implements a dispose protocol           |
+| `useInstance` / `useValue` / overrides      | ❌ caller owns the instance                      |
+| Transient                                   | ❌ never tracked — the caller owns each instance |
 
 Detection is protocol-based: a service opts in by implementing `[Symbol.asyncDispose]` (async) or `[Symbol.dispose]` (sync). A bare `dispose()` method is not enough.
 
