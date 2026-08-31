@@ -1,5 +1,15 @@
 # injectkit
 
+## 1.7.1
+
+### Patch Changes
+
+- 48c5bf9: Expose `useValue` on the public `RegistrationType` interface and return a `ScopedContainer` from `build()`.
+
+  Both were already supported at runtime but missing from the published types, so `registry.register(TOKEN).useValue(v)` and `container.override(Dep, stub)` on the root container were type errors for consumers, despite both being documented. Adds a `test:types` script that type-checks `tests/` alongside `src/`, which is what surfaced the gap.
+
+- d3f4baa: Expand the shipped `llms.txt` reference to cover the whole public API: `useArray`/`useMap` collections, the `injectkit/browser` build and why it needs explicit `deps`, a full disposal section with the what-gets-disposed table and the dispose-protocol requirement, and the `MetadataRegistry` exports used to isolate auto-registration. Adds the three disposed-container error messages to the error table.
+
 ## 1.7.0
 
 ### Minor Changes
