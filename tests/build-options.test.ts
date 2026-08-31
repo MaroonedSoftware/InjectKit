@@ -75,7 +75,7 @@ describe('build options', () => {
       autoRegisterDecorated: true,
     });
 
-    const logger = container.get(LOGGER);
+    const logger = container.get<Logger>(LOGGER);
     expect(logger).toBeInstanceOf(LoggerProvider);
     expect(logger.log('hello')).toBe('log:hello');
   });
@@ -92,7 +92,7 @@ describe('build options', () => {
       overrides: [{ token: LOGGER, useClass: TestLogger, lifetime: 'singleton' }],
     });
 
-    expect(container.get(LOGGER).log('hello')).toBe('test:hello');
+    expect(container.get<Logger>(LOGGER).log('hello')).toBe('test:hello');
   });
 
   it('should auto-register only the listed classes when given an allowlist', () => {

@@ -16,6 +16,8 @@
   <a href="#core-concepts">Core Concepts</a> •
   <a href="#api-reference">API Reference</a> •
   <a href="#disposal">Disposal</a> •
+  <a href="#validation">Validation</a> •
+  <a href="#testing">Testing</a> •
   <a href="#license">License</a>
 </p>
 
@@ -50,6 +52,11 @@ Point your assistant at that path (or paste the file into context) before asking
 write InjectKit code. Its behavioral claims are pinned by
 [`tests/llms-claims.test.ts`](tests/llms-claims.test.ts), so the file cannot silently
 drift from the implementation.
+
+If you are contributing to InjectKit itself rather than using it, the equivalent file is
+[`AGENTS.md`](AGENTS.md) at the repo root. It is read natively by Claude Code, Cursor,
+Codex, and Copilot, and covers the source layout, the gotchas worth knowing before
+changing resolution or lifetimes, and the checks a change has to pass.
 
 ## Installation
 
@@ -310,7 +317,22 @@ const config = new ConfigService({ env: 'production' });
 registry.register(ConfigService).useInstance(config);
 ```
 
-For primitive or falsy values (numbers, strings, booleans, `undefined`), use `registry.registerValue(token, value)` instead.
+#### `useValue(value)`
+
+Register an arbitrary value, including primitives, falsy values, and `undefined`. Like `useInstance`, always behaves as a singleton regardless of any lifetime call, and the container never disposes it.
+
+```typescript
+registry.register<number>('retryCount').useValue(3);
+registry.register<string | undefined>('apiKey').useValue(undefined);
+```
+
+`registry.registerValue(token, value)` is shorthand for the same thing when the token is a string or symbol:
+
+```typescript
+registry.registerValue('retryCount', 3);
+```
+
+Prefer `useValue` over `useInstance` for anything that is not an object instance: `useInstance` is typed for instances, so primitives and falsy values belong here.
 
 #### `useArray(constructor)`
 

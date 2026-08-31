@@ -260,8 +260,8 @@ describe('InjectKitRegistry', () => {
 
       expect(notifiers).toBeInstanceOf(Array);
       expect(notifiers.length).toBe(2);
-      expect(notifiers[0].notify('test')).toBe('email: test');
-      expect(notifiers[1].notify('test')).toBe('sms: test');
+      expect(notifiers[0]?.notify('test')).toBe('email: test');
+      expect(notifiers[1]?.notify('test')).toBe('sms: test');
     });
 
     it('should resolve each item in the array', () => {

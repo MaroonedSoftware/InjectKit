@@ -238,6 +238,14 @@ export interface RegistrationType<T> {
   useInstance(instance: Instance<T>): void;
 
   /**
+   * Registers a service using an arbitrary value, including primitives, falsy
+   * values, or `undefined`. Value registrations always behave as singletons,
+   * regardless of any lifetime call on the same registration.
+   * @param value The value to register.
+   */
+  useValue(value: T): void;
+
+  /**
    * Registers a service as an array type, allowing multiple implementations to be collected.
    * The array will be populated with instances resolved from tokens added via push().
    * The element type is inferred from `T` when `T` is an array.
@@ -351,9 +359,11 @@ export interface Registry {
    * Builds a validated container from explicit registrations, optional decorated
    * registrations and optional overrides.
    * @param options Optional build-time composition settings.
-   * @returns A container instance.
+   * @returns A container instance. Returned as a {@link ScopedContainer} because
+   * the root container supports `override`, which is how a singleton's
+   * dependency is stubbed (scope-level overrides are invisible to singletons).
    */
-  build(options?: BuildOptions): Container;
+  build(options?: BuildOptions): ScopedContainer;
 }
 
 /**

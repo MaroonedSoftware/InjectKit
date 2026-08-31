@@ -119,8 +119,8 @@ container.get(UserService).createUser('ada');
 | `.useFactory(fn)`       | `.asSingleton()` etc.   | `fn: (container: Container) => T`.           |
 | `.useInstance(obj)`     | terminal                | **Always singleton**, lifetime calls ignored. |
 | `.useValue(v)`          | terminal                | **Always singleton**. Use for primitives, `undefined`, falsy values. |
-| `.useArray(Ctor)`       | `.push(id)`             | Collects several tokens into an array.       |
-| `.useMap(Ctor)`         | `.set(key, id)`         | Collects several tokens into a map.          |
+| `.useArray(Ctor)`       | `.push(id)`             | Collects several tokens into an array. `Ctor` must `extends Array<V>`. |
+| `.useMap(Ctor)`         | `.set(key, id)`         | Collects several tokens into a map. `Ctor` must `extends Map<K, V>`. |
 
 ### Lifetimes
 
@@ -136,8 +136,8 @@ container.get(UserService).createUser('ada');
 | ------------------------- | --------------------------------------------------------- |
 | `get<T>(id): T`           | Throws if the id is not registered or the container is disposed. |
 | `hasRegistration<T>(id)`  | `boolean`.                                                |
-| `createScopedContainer()` | Returns a `ScopedContainer` (a `Container` plus `override`). |
-| `override<T>(id, inst)`   | Scoped containers only. Substitutes an instance in this scope. |
+| `createScopedContainer()` | Returns a `ScopedContainer` (a `Container` plus `override`). Throws if the container is disposed. |
+| `override<T>(id, inst)`   | Substitutes an instance. Available on scopes and on the container `build()` returns, not on a `Container` injected into a service. |
 | `disposeAsync()`          | Idempotent. Also available via `await using`.             |
 
 ### Decorators
@@ -174,6 +174,35 @@ replace anything.
 Prefer the array form of `autoRegisterDecorated`. The default metadata registry is
 process-global, so `true` can pull in decorated classes from unrelated modules. For hard
 isolation, pass a fresh `new DefaultMetadataRegistry()` to `createRegistry()`.
+
+## Collections
+
+Register several implementations behind one token. The token class must extend the
+built-in it collects, or the return type resolves to `never` and the chain will not
+compile.
+
+```typescript
+@Injectable()
+class Handlers extends Array<Handler> {}
+
+registry.register(JsonHandler).useClass(JsonHandler).asSingleton();
+registry.register(XmlHandler).useClass(XmlHandler).asSingleton();
+registry.register(Handlers).useArray(Handlers).push(JsonHandler).push(XmlHandler);
+
+container.get(Handlers); // [JsonHandler, XmlHandler], in push order
+```
+
+```typescript
+@Injectable()
+class Processors extends Map<string, Processor> {}
+
+registry.register(Processors).useMap(Processors).set('fast', FastProcessor).set('accurate', AccurateProcessor);
+
+container.get(Processors).get('fast'); // FastProcessor instance
+```
+
+Each pushed or set token must itself be registered; the collection resolves them through
+the container like any other dependency, so missing ones are reported by `build()`.
 
 ## Rules that differ from other DI containers
 
@@ -246,6 +275,76 @@ Or with explicit resource management:
 await using scope = container.createScopedContainer();
 ```
 
+## Disposal
+
+Containers and scopes implement `AsyncDisposable`. A container disposes the instances it
+constructed, in **reverse creation order**, so a service is torn down before the
+dependencies it was built from.
+
+```typescript
+@Injectable()
+class DbConnection {
+  async [Symbol.asyncDispose]() {
+    await this.pool.end();
+  }
+}
+
+await using container = registry.build(); // or: await container.disposeAsync()
+```
+
+| Registration                                | Disposed?                                        |
+| ------------------------------------------- | ------------------------------------------------ |
+| `useClass` / `useFactory` (container-built) | Yes, if it implements a dispose protocol         |
+| `useInstance` / `useValue` / overrides      | No, the caller owns the instance                 |
+| Transient                                   | No, never tracked; the caller owns each instance |
+
+Opting in is protocol-based: implement `[Symbol.asyncDispose]` (async) or
+`[Symbol.dispose]` (sync). A plain `dispose()` method is **not** detected.
+
+Disposal is idempotent. After a container is disposed, `get()` and
+`createScopedContainer()` on it throw. See rule 8 for which container owns what.
+
+## Browser usage
+
+The package ships a browser ESM bundle at the `injectkit/browser` subpath export, usable
+directly from `<script type="module">`.
+
+Bundlers strip `emitDecoratorMetadata`, so browser code must use Option A from "Required
+setup": declare dependencies explicitly with `@Injectable({ deps: [...] })`. Without a
+decorator transform, apply the decorator as a plain call:
+
+```javascript
+import { Injectable, createRegistry } from 'injectkit/browser';
+
+class UserService {
+  constructor(logger) {
+    this.logger = logger;
+  }
+}
+Injectable({ deps: [Logger] })(UserService);
+```
+
+## Metadata registry
+
+Decorators record metadata in a `MetadataRegistry`. `createRegistry()` uses the
+process-global default, reachable via `getDefaultMetadataRegistry()`.
+
+That default is shared across every module in the process, which is why
+`autoRegisterDecorated: true` can pull in decorated classes you did not intend. For hard
+isolation, most often in tests, hand a fresh registry to `createRegistry`:
+
+```typescript
+import { createRegistry, DefaultMetadataRegistry } from 'injectkit';
+
+const registry = createRegistry(new DefaultMetadataRegistry());
+// sees only classes decorated after this point through this registry
+```
+
+`MetadataRegistry` is an interface (`defineServiceMetadata`, `getServiceMetadata`,
+`getDecoratedClasses`, `getConstructorDependencies`), so a custom implementation can
+replace the reflection strategy entirely. `ServiceMetadata` is the stored shape:
+`{ injectable, lifetime?, provide?, deps? }`.
+
 ## Testing
 
 Two approaches, both first-class:
@@ -262,7 +361,8 @@ scope.override(EmailService, mockEmail);
 ```
 
 Remember rule 5: a scope override is invisible to singletons. If the service under test
-is a singleton, override on the root container or use a build-time override.
+is a singleton, use a build-time override, or call `override` on the container `build()`
+returned (it is a `ScopedContainer`, so this type-checks).
 
 ## Error messages and what they mean
 
@@ -278,6 +378,8 @@ is a singleton, override on the root container or use a build-time override.
 | `Registration for X not found`                     | Resolving an unregistered id.                        | Register it, or check `hasRegistration()` first. |
 | `Invalid registration for X`                       | A registration with no creation strategy.            | Call one of `useClass` / `useFactory` / `useInstance` / `useValue`. |
 | `Cannot resolve from a disposed container`         | `get()` after `disposeAsync()`.                      | Do not reuse a disposed scope.                   |
+| `Cannot override a registration in a disposed container` | `override()` after `disposeAsync()`.           | Do not reuse a disposed scope.                   |
+| `Cannot create a scope from a disposed container`  | `createScopedContainer()` after `disposeAsync()`.    | Do not reuse a disposed scope.                   |
 
 ## Type reference
 
@@ -291,7 +393,19 @@ type Override<T> =
   | { token: Identifier<T>; useClass: Constructor<T>; lifetime?: Lifetime }
   | { token: Identifier<T>; useFactory: Factory<T>; lifetime?: Lifetime }
   | { token: Identifier<T>; useValue: Instance<T> };
+type ServiceMetadata = {
+  injectable: boolean;
+  lifetime?: Lifetime;
+  provide?: Identifier<unknown>;
+  deps?: readonly Identifier<unknown>[];
+};
 ```
+
+`formatIdentifier(id)` is exported too; it renders an identifier the way the error
+messages above do, which is useful when writing your own diagnostics.
+
+`registry.build()` returns a `ScopedContainer`, so `override` is available on the root
+container as well as on scopes.
 
 Using a string or symbol token means `get()` cannot infer the type, so pass it:
 
