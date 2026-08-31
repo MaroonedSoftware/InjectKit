@@ -303,7 +303,10 @@ export class InjectKitRegistry implements Registry {
    * validated for missing dependencies, circular dependencies, and singletons
    * capturing scoped registrations before a container is returned.
    * @param options Optional build-time composition settings.
-   * @returns A configured container instance ready to resolve services.
+   * @returns A configured container ready to resolve services. Typed as a
+   * {@link ScopedContainer} because the root container supports `override`,
+   * which is how a singleton's dependency is stubbed (scope-level overrides are
+   * invisible to singletons).
    * @throws {Error} If validation fails.
    */
   public build(options: BuildOptions = {}): ScopedContainer {
