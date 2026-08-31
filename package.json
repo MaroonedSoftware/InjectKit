@@ -60,6 +60,7 @@
     "lint": "eslint --fix",
     "format": "prettier --write . ",
     "test": "vitest run",
+    "test:types": "tsc --noEmit -p tsconfig.test.json",
     "test:browser": "pnpm run build:browser && node tests/browser/browser-ready-smoke.mjs",
     "test:ci": "vitest run --coverage && pnpm run test:browser"
   },

@@ -11,6 +11,7 @@ import {
   RegistrationMap,
   RegistrationType,
   Registry,
+  ScopedContainer,
   Identifier,
   Instance,
   formatIdentifier,
@@ -305,7 +306,7 @@ export class InjectKitRegistry implements Registry {
    * @returns A configured container instance ready to resolve services.
    * @throws {Error} If validation fails.
    */
-  public build(options: BuildOptions = {}): Container {
+  public build(options: BuildOptions = {}): ScopedContainer {
     const registrations = new Map<Identifier<unknown>, Registration<unknown>>();
 
     for (const [token, registration] of this.registrations.entries()) {

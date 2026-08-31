@@ -39,6 +39,9 @@ jobs:
       - name: Run build
         run: pnpm run build:ci
 
+      - name: Type-check src and tests
+        run: pnpm run test:types
+
       - name: Run tests
         run: pnpm run test:ci
 

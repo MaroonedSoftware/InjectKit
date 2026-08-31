@@ -7,10 +7,11 @@ Usage flow: build an `InjectKitRegistry`, register with the fluent API (`.regist
 ## Commands
 
 ```bash
-pnpm run build     # tsup bundle + tsc declarations
-pnpm run test      # vitest
-pnpm run lint      # eslint --fix
-pnpm run changeset # changeset + version bump (required for any user-facing change)
+pnpm run build      # tsup bundle + tsc declarations
+pnpm run test       # vitest
+pnpm run test:types # tsc --noEmit over src + tests
+pnpm run lint       # eslint --fix
+pnpm run changeset  # changeset + version bump (required for any user-facing change)
 ```
 
 ## Source layout
@@ -39,7 +40,7 @@ pnpm run changeset # changeset + version bump (required for any user-facing chan
 - **A singleton may not depend on a scoped registration.** `build()` rejects it, following transient links to catch indirect captures. Factory registrations declare no dependencies, so this check cannot see through `useFactory`.
 - **`useInstance` and `useValue` are always singletons** regardless of any lifetime call.
 - **There are two build targets.** Node ESM (`.` → `dist/index.js`) and a browser bundle (`./browser` → `dist/browser/injectkit.js`, built by `tsup.browser.config.ts`). Browser consumers cannot rely on `emitDecoratorMetadata`, because bundlers strip it. Anything touching dependency extraction must keep the explicit `@Injectable({ deps: [...] })` path working, and `pnpm run test:browser` must stay green.
-- **`tests/` is not type-checked by `pnpm run test`.** Vitest compiles with SWC, which strips types without checking them, and `tests/` sits outside the build tsconfig's `include`. A passing test proves runtime behavior, not API shape. Verify the public surface against `src/interfaces.ts` rather than against a passing test.
+- **`tests/` is not type-checked by `pnpm run test`.** Vitest compiles with SWC, which strips types without checking them, and `tests/` sits outside the build tsconfig's `include`. A passing test proves runtime behavior, not API shape. Verify the public surface against `src/interfaces.ts`, and run `pnpm run test:types` (`tsconfig.test.json`, wired into CI) before claiming a signature works for consumers. That gate is what caught `useValue` and `override` being absent from the public types while working fine at runtime.
 - **ESLint reports everything as warnings** (`eslint-plugin-only-warn`), so a clean exit code does not mean a clean lint. Read the output.
 
 ## `llms.txt` is a shipped artifact
