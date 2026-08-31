@@ -16,17 +16,17 @@ pnpm run changeset  # changeset + version bump (required for any user-facing cha
 
 ## Source layout
 
-| File | Contents |
-| ---- | -------- |
-| `src/index.ts` | Barrel. Five `export *` lines; the entire public surface. |
-| `src/interfaces.ts` | Public types, the abstract `Container` class, `formatIdentifier`. |
-| `src/internal.ts` | Internal `Registration<T>` only. Marked `@internal`, not re-exported. |
-| `src/registry.ts` | `InjectKitRegistry`, `InjectKitRegistration`, `createRegistry`, build-time DFS validation. |
-| `src/container.ts` | `InjectKitContainer`: resolution, lifetime caching, scopes, override, disposal. |
-| `src/container.noop.ts` | `InjectKitContainerNoop`, the null-object container. |
-| `src/injectable.ts` | `@Injectable`, `@Singleton`, `@Scoped`, `@Transient`, `@Provider`. |
-| `src/metadata.ts` | `ServiceMetadata`, `MetadataRegistry`, `DefaultMetadataRegistry`, `getDefaultMetadataRegistry`. |
-| `src/async-disposable-stack.ts` | `AsyncDisposableStack` polyfill. Not exported from the barrel. |
+| File                            | Contents                                                                                        |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `src/index.ts`                  | Barrel. Five `export *` lines; the entire public surface.                                       |
+| `src/interfaces.ts`             | Public types, the abstract `Container` class, `formatIdentifier`.                               |
+| `src/internal.ts`               | Internal `Registration<T>` only. Marked `@internal`, not re-exported.                           |
+| `src/registry.ts`               | `InjectKitRegistry`, `InjectKitRegistration`, `createRegistry`, build-time DFS validation.      |
+| `src/container.ts`              | `InjectKitContainer`: resolution, lifetime caching, scopes, override, disposal.                 |
+| `src/container.noop.ts`         | `InjectKitContainerNoop`, the null-object container.                                            |
+| `src/injectable.ts`             | `@Injectable`, `@Singleton`, `@Scoped`, `@Transient`, `@Provider`.                              |
+| `src/metadata.ts`               | `ServiceMetadata`, `MetadataRegistry`, `DefaultMetadataRegistry`, `getDefaultMetadataRegistry`. |
+| `src/async-disposable-stack.ts` | `AsyncDisposableStack` polyfill. Not exported from the barrel.                                  |
 
 ## Gotchas
 
